@@ -1,0 +1,30 @@
+pnpm-lock.yaml
+
+# Uretilmis / derleme ciktilari
+**/dist/**
+**/.next/**
+**/coverage/**
+**/.turbo/**
+
+# Vault'un oto-uretilen gun indeksi: `gen-digest.mjs` uretir, sozlesme "elle
+# editleme" der (bir sonraki uretimde ezilir) — bicimlendirmenin hedefi
+# olamaz; `format:check`i kimsenin dokunmadigi bir dosya yuzunden kapatirdi
+# (asagidaki `.claude/worktrees/**` ile ayni gerekce).
+
+# Kullanicinin "ofis" calisma notlari (`.claude/ofis/**`): teslim edilen bir
+# artefakt degil, kullaniciya ait serbest notlar. 2026-09-18'de acik soru
+# olarak duruyordu (gun README #4); DIGEST ile ayni gerekceyle ignore'a alindi —
+# dosyalara DOKUNULMADI, yalniz bicim kapisi onlari hedef almaz. Istenirse
+# `prettier --write .claude/ofis` ile bicimlendirilip bu satir kaldirilir.
+.claude/ofis/**
+
+# Tauri / Rust ciktilari
+**/src-tauri/target/**
+**/src-tauri/gen/**
+
+# Agent worktree'leri: bu dizinler reponun IKINCI bir checkout'udur (git
+# worktree), kaynak agaci degil. Icerikleri baska bir commit'ten geldigi icin
+# `format:check` onlarda kirmizi olur ve kapiyi kimsenin dokunmadigi dosyalar
+# yuzunden kapatir. Duzeltmek de yanlis olur: baska bir dalin dosyalarini
+# bu daldan bicimlendirmek o dalda gurultu uretir.
+.claude/worktrees/**

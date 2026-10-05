@@ -1,0 +1,35 @@
+{
+  "name": "@smith/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Arka plan is tuketicisi: MEMORY_INDEX, SESSION_SUMMARY",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@smith/db": "workspace:*",
+    "@smith/env": "workspace:*",
+    "@smith/llm": "workspace:*",
+    "@smith/memory": "workspace:*",
+    "@smith/mission": "workspace:*",
+    "@smith/observability": "workspace:*",
+    "@smith/queue": "workspace:*",
+    "@smith/tenancy": "workspace:*"
+  },
+  "devDependencies": {
+    "@smith/eslint-config": "workspace:*",
+    "@smith/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smith Dashboard</title>
+    <script>
+      window.__SMITH_DASHBOARD_BOOT__ = { htmlMs: performance.now(), firstPaintMs: null };
+      requestAnimationFrame(() => {
+        window.__SMITH_DASHBOARD_BOOT__.firstPaintMs = performance.now();
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      BOOT FALLBACK: React cizilene kadar GORUNEN icerik. Oncesinde govde
+      beyaz kalirdi (mission.css de JS ile gelir); bu blok ilk kareyi boyar,
+      main.tsx cizimden once siler. Ilk-acilis beyazlik sinifini UX'te kapatir.
+    -->
+    <div
+      id="boot-fallback"
+      style="
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b0418;
+        color: #b9acdf;
+        font:
+          13px Inter,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+        letter-spacing: 0.06em;
+      "
+    >
+      SMITH DASHBOARD yukleniyor…
+    </div>
+    <script type="module" src="/src/mission/main.tsx"></script>
+  </body>
+</html>

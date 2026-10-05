@@ -1,0 +1,574 @@
+/*
+ * Ada 2: kose panosu (`Hud.tsx`). Genis pencerede sag ust kose, dar pencerede
+ * altta (bkz. styles.css pencere olcegi). Okunabilirlik ve gecirgenlik
+ * sozlesmesi styles.css basliginda.
+ *
+ * ETKILESIM OLCULERI: dugmeler en az 32px, birincil eylemler (dinleme, dokum)
+ * 40px; odak halkasi 2px (tek kural, dosya sonunda). Metin 13px.
+ */
+
+/* --- panel -------------------------------------------------------------- */
+
+.hud {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  width: var(--hud-w);
+  min-width: 0;
+  /* Kisa pencerede alt kontroller kirpilmasin: pano kendi icinde kayar. */
+  max-height: calc(100vh - 2 * var(--edge));
+  max-height: calc(100dvh - 2 * var(--edge));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 208, 255, 0.4) transparent;
+  gap: 7px;
+  padding: 8px 9px 9px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  /* Plazma opakligiyle (`Hud.tsx` `opacity`) ayni: WebGL yokken de ayni okunabilirlik. */
+  background: rgba(12, 6, 28, 0.92);
+  box-shadow: var(--lift);
+  backdrop-filter: var(--glass-blur);
+  pointer-events: auto;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-shadow: var(--text-guard);
+}
+
+/* Daraltilmis pano: ayrintilar gizli, marka + durum + kacis kapilari kalir. */
+.hud[data-collapsed='true'] {
+  gap: 5px;
+  padding-bottom: 7px;
+}
+
+/*
+ * PANEL AKSANI (`App.tsx` `data-activity`, `activityState.ts`). Kural: DUZEN
+ * degil VURGU degisir (plan §2), bu yuzden yalniz gercekten agir basan durumda
+ * dokunuluyor. `error` panodaki `.notice[data-kind='fault']` ile AYNI tonu
+ * kullanir: arizanin tek bir rengi var, iki yerde de. Diger durumlarda kenar
+ * SABIT kalir: her arac degisiminde panonun titremesi glanceability'i bozardi.
+ */
+.stage[data-activity='error'] .hud {
+  border-color: rgba(255, 102, 92, 0.5);
+  transition: border-color 400ms ease;
+}
+
+/*
+ * Plazma yuzeyi: WebGL destekleniyorken CSS cami kapatilir ki sivi malzeme
+ * gorunsun (dolgu `HUD_SURFACE`ten gelir). `plasma-fallback` sinifi gelirse bu
+ * kural devreden cikar; o modda dolguyu plasma-ui satir ici stille verir ve
+ * yukaridaki cam dolgunun yerini alir. Bu kural aksan kuralindan SONRA gelir:
+ * plazma modunda kenari malzeme cizer.
+ */
+.hud.plasma-panel:not(.plasma-fallback) {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* --- ust satir: marka + kacis kapilari ---------------------------------- */
+
+.hud-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.07em;
+}
+
+.pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-dim);
+  box-shadow: 0 0 0 0 rgba(67, 230, 255, 0.5);
+}
+
+.hud[data-on='true'] .pulse {
+  background: var(--cyan);
+  animation: beat 1.9s ease-out infinite;
+}
+
+.stage[data-speaking='true'] .pulse {
+  background: var(--magenta);
+  animation-duration: 1s;
+}
+
+@keyframes beat {
+  0% {
+    box-shadow: 0 0 0 0 rgba(67, 230, 255, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(67, 230, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(67, 230, 255, 0);
+  }
+}
+
+/*
+ * Kacis kapilari + tutamak + daralt. Cercevesiz pencerede kullanicinin TEK
+ * cikis yolu bunlar; kucuk ama daima gorunur (pano daralsa da). Her dugme
+ * 32x32: bes dugme + marka 270px'lik panoya sigar, dar kalirsa satir kirilir.
+ */
+.hud-tools {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.ic {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  place-items: center;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+/*
+ * TAKILI HOVER KORUMASI. Rust gozcusu gecirgene gecmeden once
+ * `window://interactive` = false yayinlar; o andan sonra webview HIC fare olayi
+ * almaz, dolayisiyla tarayici `:hover` durumunu kendiliginden TEMIZLEYEMEZ ve
+ * dugme sonsuza kadar "fare uzerinde" gorunur. Bu yuzden butun hover kurallari
+ * sahnenin inert OLMAMASINA bagli.
+ */
+.stage:not([data-inert='true']) .ic:hover {
+  border-color: var(--glass-edge);
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  color: var(--ink);
+}
+
+.stage:not([data-inert='true']) .ic-quit:hover {
+  border-color: rgba(255, 92, 240, 0.55);
+  background: rgba(255, 92, 240, 0.24);
+  color: var(--alarm);
+}
+
+/* Cerceve acikken (normal pencere modu) dugme basili gorunur. */
+.ic[data-on='true'] {
+  border-color: rgba(67, 230, 255, 0.45);
+  background: rgba(67, 230, 255, 0.16);
+  color: var(--ink);
+}
+
+/* Durum satiri: "dinliyor" / "hafizada ariyor…". Dar panoda kirilmaz, kisalir. */
+.hud-state {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pencere komutu / baglanti / mixer hatalari: amber, satir kirilir (yatay kaydirma yok). */
+.hud-link-error,
+.screen-stream-error {
+  margin: 0;
+  color: #ffc568;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* --- dinleme kipi + ekran akisi ----------------------------------------- */
+
+.mix-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.listening-modes {
+  flex-wrap: wrap;
+}
+
+.listening-modes .mix-btn[aria-pressed='true'] {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.screen-stream {
+  padding: 6px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 7px;
+}
+
+.screen-stream[data-on='true'] {
+  border-color: #ffc568;
+  background: rgba(255, 197, 104, 0.14);
+}
+
+.screen-stream-state {
+  flex: 1;
+  font-size: 13px;
+}
+
+.screen-stream[data-on='true'] .screen-stream-state {
+  color: #ffc568;
+  font-weight: 700;
+}
+
+/* --- birincil eylemler: dinleme ve zihin dokumu (40px) ------------------- */
+
+/*
+ * Tek kontrol: dinlemeyi baslat/durdur (tasarim mandasi: iki ayri dugme YOK).
+ * Dinlenmiyorken (davet hali) aksan zamana uyarlanir (plan §4.5: "birincil ses
+ * eylemi aktif zaman aksanini kullanir"); dinlerken (`[data-on='true']`)
+ * magenta SABIT kalir: "ses canli" anlami zamandan bagimsiz olmali.
+ */
+.hud-mic {
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 50%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-shadow: var(--text-guard);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.stage:not([data-inert='true']) .hud-mic:hover {
+  border-color: var(--cyan);
+  background: rgba(67, 230, 255, 0.24);
+}
+
+.hud-mic[data-on='true'] {
+  border-color: rgba(255, 92, 240, 0.45);
+  background: rgba(255, 92, 240, 0.16);
+  color: var(--ink-dim);
+}
+
+.stage:not([data-inert='true']) .hud-mic[data-on='true']:hover {
+  border-color: rgba(255, 92, 240, 0.75);
+  color: var(--ink);
+}
+
+/* `.mix-btn` ile birlikte kullanilir; ikinci sinif `.mix-btn`in 32px tabanini ezer. */
+.hud .hud-mind {
+  min-height: 40px;
+}
+
+/* --- mixer: mikrofon kapisi + cikis duzeyi ------------------------------- */
+
+/*
+ * "sustur" tek dugmesi TUM oturumu durdurur; mixer ise oturuma dokunmadan
+ * mikrofonu ve Smith'in sesini yonetir (kullanici istegi: "ses karistiricisi
+ * gibi bir alan"). Satir duzeni sinyal listesiyle ayni ritimde: etiket |
+ * gosterge | dugme. Ayrac cizgisi panel icinde yeni bir blok oldugunu soyler.
+ */
+.mixer {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 7px;
+  border-top: 1px solid var(--glass-edge);
+}
+
+.mix-label {
+  flex: 0 0 auto;
+  min-width: 56px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Seviye cubugu: Rust'tan gelen mic RMS'i (audio://level). Susturulmusken de
+   dolar: mikrofon calisiyor, oturuma sessizlik gidiyor. */
+.mix-meter {
+  flex: 1 1 auto;
+  height: 6px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mix-meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cyan) 75%, transparent);
+  transition: width 90ms linear;
+}
+
+.mix-vol {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.mix-btn {
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  white-space: normal;
+  cursor: pointer;
+  text-shadow: var(--text-guard);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.stage:not([data-inert='true']) .mix-btn:hover {
+  border-color: var(--cyan);
+  background: rgba(67, 230, 255, 0.2);
+}
+
+/* Susturulmus kontrol kirmizi DEGIL magenta'da kalir: durum, ariza degil
+   (bkz. .hud-mic[data-on] ile ayni dil). */
+.mix-btn[data-muted='true'] {
+  border-color: rgba(255, 92, 240, 0.5);
+  background: rgba(255, 92, 240, 0.14);
+  color: var(--ink-dim);
+}
+
+.stage:not([data-inert='true']) .mix-btn[data-muted='true']:hover {
+  border-color: rgba(255, 92, 240, 0.75);
+  color: var(--ink);
+}
+
+/* Bekleyen komut: dugme kilitli. Kaydirici bunun disindadir (kilitlenen girdi suruklemeyi keser). */
+.hud button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+/* --- panodaki dikey sinyal listesi -------------------------------------- */
+
+/*
+ * Eskiden yatay chip seridiydi; seffaf pencerede yatay yer YOK ve chip'ler
+ * pet'in uzerine biniyordu. Ayni DOM (`StatusBar`), dikey liste olarak cizilir:
+ * nokta | etiket | deger. Her satir acilir bir `<details>`: ozet satiri klavyeyle
+ * odaklanir (32px), ayrinti metni altinda acilir.
+ */
+.signals {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sig-detail {
+  min-width: 0;
+}
+
+.sig-detail summary {
+  list-style: none;
+}
+
+.sig-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.sig-detail[open] summary {
+  color: var(--ink);
+}
+
+.sig-detail p {
+  margin: 4px 6px 10px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sig {
+  display: grid;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  /* Tum satirlarda seffaf kenar: `unknown` satiri kesik cizgi kazandiginda
+     hizalama KAYMAZ. */
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  /* ikon | nokta | etiket(esner) | deger(daralmaz) */
+  grid-template-columns: 13px 6px minmax(0, 1fr) auto;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-dim);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    color 240ms ease,
+    background 240ms ease;
+}
+
+/*
+ * Satirin KIMLIGI (hangi sinyal oldugu): daima notr. Renk tasiyan tek eleman
+ * `.sig-dot`dir (DURUM); ikisi birden boyanirsa satir gurultulu olur ve "hangi
+ * renk ne anlatiyor" belirsizlesir.
+ */
+.sig-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--ink-dim);
+  opacity: 0.75;
+}
+
+.sig-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sig-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-dim);
+  transition: background 240ms ease;
+}
+
+.sig-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Deger ASLA kisalmaz: bilgi degerdedir. */
+.sig-value {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Olculdu + acik. */
+.sig[data-tone='live'] {
+  background: rgba(67, 230, 255, 0.12);
+  color: var(--ink);
+}
+.sig[data-tone='live'] .sig-dot {
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(67, 230, 255, 0.8);
+}
+
+/* Kuruluyor. */
+.sig[data-tone='pending'] .sig-dot {
+  background: var(--violet);
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/*
+ * Olculdu + sorunlu: DIKKAT tonu. Magenta DEGIL: magenta "ses canli"
+ * (konusuyor/dinliyor) demek, ikisi karisirsa kullanici "sorun mu var, Smith
+ * mi konusuyor" ayiramaz. Amber kendi basina bu satirin anlamini tasir.
+ */
+.sig[data-tone='warn'] {
+  border-color: rgba(255, 196, 92, 0.4);
+  /* Koyu amber dolgu: acik amber metin beyaz masaustunde de 4.5:1 saglar (mainCss.test.ts). */
+  background: rgba(56, 36, 0, 0.6);
+  color: var(--warning);
+}
+.sig[data-tone='warn'] .sig-dot {
+  background: var(--warning);
+}
+
+/*
+ * Cihazda VAR ama UI'a bildirilMEYEN sinyal. Kesik cizgi + bos nokta bilincli:
+ * "kapali" ile karistirilmasin, "bilmiyoruz" desin. Ayrinti acilir metinde.
+ */
+.sig[data-tone='unknown'] {
+  border-color: rgba(233, 226, 255, 0.24);
+  border-style: dashed;
+  background: transparent;
+}
+.sig[data-tone='unknown'] .sig-dot {
+  border: 1px solid var(--ink-dim);
+  background: transparent;
+  box-shadow: none;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* --- odak halkasi -------------------------------------------------------- */
+
+/* Pano icindeki her etkilesimli oge icin TEK kural: 2px, kontrastli, kirpilmaz. */
+.hud :focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* --- hata yedegi (HudErrorBoundary) -------------------------------------- */
+
+/* Render hatasinda arayuzun yerine gecen opak panel; yedek de bir "ada"dir (hit alani bildirilir). */
+.hud-fallback {
+  position: fixed;
+  inset: 16px;
+  padding: 24px;
+  overflow: auto;
+  background: #170e29;
+  color: var(--ink);
+  pointer-events: auto;
+}
+
+.hud-fallback h1 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.hud-fallback p {
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.hud-fallback button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hud-fallback :focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}

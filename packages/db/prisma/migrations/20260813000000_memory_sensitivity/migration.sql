@@ -1,0 +1,12 @@
+-- Memory.sensitivity (ADR 0004): public | personal | secret.
+--
+-- BU MIGRATION GERIYE DONUK YAZILDI. Kolon gelistirme veritabanina migration
+-- disinda eklenmisti; sema dosyasi ile migration gecmisi ayristi ve Prisma
+-- "drift" gorup reset istedi. Reset, embed kotasiyla doldurulmus gercek
+-- hafizayi silecekti (bkz. ADR 0004/0006 kota kirmizi cizgisi) — bu yuzden
+-- kolon yeniden yaratilmadi, eksik olan MIGRATION yazildi ve mevcut veritabani
+-- icin `prisma migrate resolve --applied` ile uygulanmis isaretlendi.
+--
+-- Taze bir veritabani bu dosyayi normal sirada kosar ve ayni semaya ulasir.
+-- IF NOT EXISTS: iki yol (resolve edilmis eski DB / taze DB) da guvenli olsun.
+ALTER TABLE "Memory" ADD COLUMN IF NOT EXISTS "sensitivity" TEXT NOT NULL DEFAULT 'personal';

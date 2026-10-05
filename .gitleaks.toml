@@ -1,0 +1,19 @@
+# gitleaks configuration.
+# Extends the default ruleset and allowlists only the synthetic values used by
+# the unit tests of the secret-redaction code: "abc123def456", an RFC 6455
+# sample nonce, a base64 "user:password" pair and a placeholder PEM block.
+title = "smith gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic fixtures for redaction and secret-masking tests"
+regexes = [
+  '''abc123def456''',
+  '''abcdef123456''',
+  '''9f8e7d6c5b4a3f2e1d0c''',
+  '''dGhlIHNhbXBsZSBub25jZQ''',
+  '''dXNlcjpwYXNzd29yZA''',
+  '''fixture-value''',
+]

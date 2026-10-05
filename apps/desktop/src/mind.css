@@ -1,0 +1,238 @@
+/*
+ * Ada 4: dusunce baloncugu (pet'in USTUNDE) ve "zihninde ne var" dokumu.
+ * Okunabilirlik ve gecirgenlik sozlesmesi styles.css basliginda.
+ */
+
+/* --- dusunce baloncugu --------------------------------------------------- */
+
+/*
+ * "Smith'in su an aklinda ne var". Konusma balonlarindan GORSEL OLARAK
+ * ayrilmasi sart, cunku ikisi ayri seyler soyluyor:
+ *   - `.bubble` (pet'in ALTINDA)  = soylenen soz. Sivri kosesi var (13/5px),
+ *     rol rengi cyan/magenta, sola-saga hizali.
+ *   - `.mind-thought` (pet'in USTUNDE) = yapilan is. Tamamen yuvarlak
+ *     (999px), mor kenar, ortali; pet'e dogru KUCULEN iki nokta ile baglanir.
+ * Bu, cizgi romanin dusunce baloncugu dilidir; karistirilmasi mumkun degil.
+ *
+ * Icerik UYDURULMAZ: her satir gercek bir Rust olayinin karsiligidir
+ * (`mindBubbles.ts`). Olay yoksa bu ada DOM'da hic bulunmaz.
+ */
+.mind {
+  display: flex;
+  max-width: 100%;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: auto;
+}
+
+/*
+ * Kabarcik yigini AYNI ZAMANDA dugmedir: tiklaninca `zihin_dokumu` acilir.
+ * Tarayici varsayilanlari (kenar, dolgu, zemin) tamamen sifirlanir; gorsel
+ * yuzeyler tek tek kabarciklarda.
+ */
+.mind-cloud {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.mind-cloud:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+/* Takili hover korumasi: `.ic`/`.hud-mic` ile ayni kural (bkz. hud.css). */
+.stage:not([data-inert='true']) .mind-cloud:hover .mind-thought {
+  border-color: color-mix(in srgb, var(--accent-primary) 75%, transparent);
+}
+
+.mind-thought {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  /* Tam yuvarlak: dusunce baloncugunun imzasi. */
+  border-radius: 999px;
+  background: var(--glass);
+  box-shadow: var(--lift);
+  backdrop-filter: var(--glass-blur);
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  /* Tek satir: yuksekligi ONGORULEBILIR kalir, uc kabarcik pencereyi tasirmaz. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: var(--text-guard);
+  animation: mind-pop 260ms ease;
+}
+
+/*
+ * Geri cekilme. `.bubble` ile AYNI ders: eleman `opacity`'si dolguyu da soldurur
+ * (WebGL'siz modda satir ici dolgu elemanla birlikte solar), beyaz masaustunde
+ * metin 4.5:1'in altina iner. Bu yuzden opacity HIC dusmez; hiyerarsi boyut,
+ * kenar rengi ve metin alfasindan gelir. Metin 11px'in altina inmez
+ * (okunabilirlik tabani). `mainCss.test.ts` bu tabani korur.
+ */
+.mind-thought[data-depth='1'] {
+  border-color: rgba(139, 92, 255, 0.28);
+  color: rgba(243, 238, 255, 0.92);
+  font-size: 11.5px;
+}
+
+.mind-thought[data-depth='2'] {
+  border-color: rgba(139, 92, 255, 0.2);
+  color: rgba(243, 238, 255, 0.84);
+  font-size: 11px;
+}
+
+/* Ses izi kapisinin reddi: ariza degil politika; panodaki `gate` tonu ile ayni dil. */
+.mind-thought[data-source='gate'] {
+  border-color: rgba(255, 92, 240, 0.55);
+  color: var(--alarm);
+}
+
+/* Kalici bir sey degisti (hafizaya yazildi): olculen veri tonu. */
+.mind-thought[data-source='memory'] {
+  border-color: rgba(67, 230, 255, 0.5);
+}
+
+/* Kuyruk: pet'e dogru kuculen iki nokta. */
+.mind-tail {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  border-radius: 50%;
+  background: var(--glass);
+  box-shadow: var(--lift);
+  animation: mind-pop 260ms ease;
+}
+
+.mind-tail[data-size='m'] {
+  width: 8px;
+  height: 8px;
+}
+
+.mind-tail[data-size='s'] {
+  width: 5px;
+  height: 5px;
+}
+
+/*
+ * Yumusak giris. `.bubble`in `rise` animasyonundaki ayni ihtiyat: `to` bloku
+ * YOK ve fill-mode verilmiyor, boylece bitis degeri kabarcigin KENDI
+ * opakligidir (basamaga gore 1…0.82) ve eski satirlar tam parlakliga zorlanmaz.
+ */
+@keyframes mind-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+}
+
+/* --- zihin dokumu: modal <dialog> --------------------------------------- */
+
+/*
+ * DETAY DOKUMU: `zihin_dokumu` komutunun ciktisi, yerel `<dialog>` + `showModal()`
+ * ile. Ust katmanda acilir (odak tuzagi, Escape ve arka plan inertligi
+ * yerlesik), bu yuzden WebGL plazma canvas'inin ALTINDA kalmaz ve kendi opak
+ * dolgusunu tasir: uzun metin yuzeyi cam degil, beyaz masaustunde monospace
+ * metin okunmali.
+ *
+ * Kapaliyken tarayicinin `dialog:not([open]) { display: none }` kurali
+ * gecerlidir; yerlesim yalniz `[open]` iken uygulanir. `pointer-events`:
+ * `.stage` gecirgendir ve dialog onun soyudur, acikca geri acilmali (backdrop
+ * da bunu miras alir).
+ */
+.mind-dump {
+  pointer-events: auto;
+}
+
+.mind-dump[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(900px, calc(100vw - 2 * var(--edge)));
+  height: min(720px, calc(100vh - 2 * var(--edge)));
+  height: min(720px, calc(100dvh - 2 * var(--edge)));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  background: #170e29;
+  box-shadow: var(--lift);
+  color: var(--ink);
+  text-shadow: var(--text-guard);
+}
+
+.mind-dump::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.mind-dump-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mind-dump-title {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.07em;
+}
+
+/* Dogruluk notu: gosterilen sey modele GIDEN baglamdir, dusunce izi degil. */
+.mind-dump-note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Durum mesajlari (okunuyor, bos, hata): not satirindan bir kademe buyuk, tarayici varsayilani degil. */
+.mind-dump [role='status'],
+.mind-dump [role='alert'] p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mind-dump-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  color: var(--ink-dim);
+  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 208, 255, 0.4) transparent;
+  /* `body`de secim kapali (pet suruklenirken metin secilmesin); burada ACIK:
+     dokum kopyalanabilir olmali. */
+  cursor: text;
+  user-select: text;
+}
+
+.mind-dump :focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}

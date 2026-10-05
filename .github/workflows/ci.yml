@@ -1,0 +1,53 @@
+name: CI
+
+# Full verification on a clean hosted runner: format, lint, typecheck, tests,
+# build, then a repository-wide secret scan. No caches are restored on purpose,
+# so a green run proves the repo installs and builds from a fresh clone.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      # `cache: pnpm` bilincli olarak YOK — store'un da bos olmasi gerekiyor.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Burada prisma generate icin ayri bir adim YOK: taze install her zaman
+      # is yapar, dolayisiyla kokteki postinstall kosar. Bu isin gorevi tam da
+      # o yolun saglam kaldigini dogrulamak.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify (format + lint + typecheck + test + build)
+        run: pnpm verify
+
+      - name: Secret scan (tum takipli dosyalar)
+        run: |
+          mapfile -t files < <(git ls-files)
+          bash scripts/scan-secrets.sh "${files[@]}"

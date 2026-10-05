@@ -1,0 +1,44 @@
+{
+  "name": "smith",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "node --test scripts/live-probe.test.mjs scripts/check-data-root.test.mjs scripts/memory-purge.test.mjs && turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules/.cache .turbo",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:deploy": "turbo run db:deploy",
+    "db:studio": "turbo run db:studio",
+    "verify": "pnpm format:check && turbo run lint typecheck test build --concurrency=4",
+    "changeset": "changeset",
+    "postinstall": "pnpm --filter @smith/db exec prisma generate",
+    "prepare": "lefthook install",
+    "prove:rls": "tsx scripts/prove-rls.ts"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:",
+    "@smith/eslint-config": "workspace:*",
+    "@smith/prettier-config": "workspace:*",
+    "@smith/tsconfig": "workspace:*",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "lefthook": "catalog:",
+    "pg": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "prettier": "@smith/prettier-config"
+}

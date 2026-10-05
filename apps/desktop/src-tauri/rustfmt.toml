@@ -1,0 +1,15 @@
+# rustfmt'in DETERMINIST olmasi icin: ayni kod uc yerde formatlaniyor —
+# Windows gelistirme makinesi, WSL2 CI runner'i (smith-linux-x64) ve Windows
+# CI runner'i (smith-windows-x64). Yapilandirma dosyasi olmadan bu uclu
+# ayrisabilir ve CI, gelistiricinin dogru formatladigi kodu reddeder.
+#
+# `edition` YUK TASIYAN alan: lefthook pre-commit kapisi `cargo fmt` degil
+# CIPLAK `rustfmt` cagiriyor (staged dosya listesiyle calismasi icin), ve
+# ciplak rustfmt edition'i Cargo.toml'dan OKUMAZ — varsayilani 2015'tir.
+# Edition 2015 parser'i `async`/`dyn`/`try` gibi anahtar kelimelerde takilir.
+edition = "2021"
+
+# Calisma agacindaki .rs dosyalari LF; repoda .gitattributes yok. Varsayilan
+# "Auto" satir sonunu ilk satirdan tahmin eder — Windows'ta CRLF ile checkout
+# alan bir makine sessizce tum dosyalari yeniden yazardi.
+newline_style = "Unix"

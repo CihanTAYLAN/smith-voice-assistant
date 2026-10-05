@@ -1,0 +1,26 @@
+# Smith worker — production imaji (Dokploy).
+# Calistirir: BullMQ tuketicisi (MEMORY_INDEX, SESSION_SUMMARY, AGENT_RUN).
+FROM node:22-bookworm-slim AS build
+# git: kokteki `prepare` script'i (lefthook install) build sirasinda da kosar.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
+  && corepack enable && corepack prepare pnpm@11.9.0 --activate
+WORKDIR /app
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY tooling ./tooling
+COPY packages ./packages
+COPY apps/worker ./apps/worker
+# --ignore-scripts: gerekcesi Dockerfile.gateway'de yazili.
+RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm --filter @smith/db exec prisma generate
+RUN pnpm --filter @smith/worker build
+
+FROM node:22-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/.npmrc ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/tooling ./tooling
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/apps/worker ./apps/worker
+EXPOSE 4100
+CMD ["node", "apps/worker/dist/index.js"]

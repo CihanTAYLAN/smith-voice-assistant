@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/macos-schema.json",
+  "identifier": "macos-permissions",
+  "description": "macOS sistem izinleri (mikrofon runtime istegi). Yalniz macOS.",
+  "platforms": ["macOS"],
+  "windows": ["main"],
+  "permissions": ["macos-permissions:default"]
+}

@@ -1,0 +1,61 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Ortam ve secret — asla commit edilmez
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+*.pem
+*.key
+*.p8
+*.p12
+*.mobileprovision
+
+# Apple / Android
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.gradle/
+local.properties
+
+# Isletim sistemi
+.DS_Store
+Thumbs.db
+
+# Tauri / Rust — ortadaki slash koke sabitler; ** ile her derinlikte yakala
+**/src-tauri/target/
+**/target/
+
+# Python sidecar'lari (STT/TTS): venv'ler ve INDIRILEN model agirliklari repoya
+# girmez — ilk kurulumda script'ler indirir (piper sesi 63MB). Ayni hata bir kez
+# yapildi: target/ blob'lari repoyu 427M'ye sisirdi, filter-repo ile temizlendi.
+**/sidecar/.venv*/
+**/sidecar/piper-models/
+**/sidecar/*.wav
+
+# Tek seferlik yerel Windows yardimci script'leri: mutlak yol icerirler
+# (C:\Users\...), baska makinede calismaz. Kalicilari `_` onekisiz olur.
+scripts/_*.ps1
+
+# Yerel sir dosyalari (scripts/dev-secrets.local.ps1) — asla commit edilmez
+*.local.ps1
+
+# Python sidecar'larinin derleme onbellegi
+__pycache__/
+
+# Claude Code calisma agaci izolasyonu ve makineye ozel yerel ayarlar
+.claude/worktrees/
+.claude/settings.local.json
+
+# Postgres yedekleri (scripts/pg-backup.ps1): gercek hafiza verisi icerir,
+# asla commit edilmez.
+backups/

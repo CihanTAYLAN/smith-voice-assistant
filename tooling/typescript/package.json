@@ -1,0 +1,14 @@
+{
+  "name": "@smith/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": [
+    "base.json",
+    "node.json",
+    "react.json"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

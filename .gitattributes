@@ -1,0 +1,32 @@
+# Satir sonlari DETERMINIST. Bu dosya olmadan `core.autocrlf=true` olan bir
+# Windows makinesinde checkout LF'i CRLF'e cevirir ve iki kapi YANLIS yere
+# duser:
+#   1) `rustfmt --check` -> "Incorrect newline style" (2026-08-14'te olculdu;
+#      rustfmt.toml `newline_style = "Unix"` diyor). lefthook pre-commit'teki
+#      rust-format kapisi, kimsenin dokunmadigi dosyalarda kirmizi olurdu.
+#   2) `prettier --check` (endOfLine varsayilani "lf") -> ayni sinif. Bu
+#      calisma agacinda AGENTS.md, iki workflow ve butun ADR'ler bu yuzden
+#      yerelde kirmizi gorunuyordu; index'te hepsi LF oldugu icin CI yesildi.
+#      Yani belirti "format borcu" gibi okunuyordu, oysa satir sonuydu.
+#
+# Index bugun temiz: 251 metin dosyasinin TAMAMI LF (i/crlf sifir). Bu dosya
+# icerik degistirmez, yalniz checkout davranisini sabitler.
+* text=auto eol=lf
+
+# Windows kabuk betikleri istisna: cmd.exe bazi durumlarda LF ile satir sonunu
+# yanlis ayristirir. PowerShell LF'i sorunsuz okur, o yuzden .ps1 disarida
+# birakilmadi.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Ikili dosyalar: donusum uygulanmasin.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.wav binary
+*.onnx binary
+*.bin binary
+*.gguf binary
+*.riv binary

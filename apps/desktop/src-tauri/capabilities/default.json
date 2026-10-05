@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Smith masaustu varsayilan yetenekleri (minimal).",
+  "windows": ["main"],
+  "permissions": ["core:default", "opener:default"]
+}

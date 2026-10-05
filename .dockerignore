@@ -1,0 +1,13 @@
+# Smith production imajlari icin build context disi tutulur.
+node_modules
+.turbo
+dist
+.next
+*.tsbuildinfo
+.git
+.env
+.env.*
+*.local.ps1
+apps/desktop/src-tauri/target
+apps/desktop/dist
+C:\ci

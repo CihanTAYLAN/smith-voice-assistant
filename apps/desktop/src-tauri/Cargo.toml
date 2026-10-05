@@ -1,0 +1,79 @@
+[package]
+name = "smith-desktop"
+version = "0.0.0"
+description = "Smith masaustu istemcisi"
+authors = ["Cihan Taylan"]
+license = "UNLICENSED"
+edition = "2021"
+
+# Iki bin var: smith-desktop (Tauri uygulamasi) + smith-harness (kod-ajani
+# JSON CLI'i, src/bin/). `tauri dev` ciplak `cargo run` cagirir; default-run
+# olmadan cargo hangi bin'i kosacagini secemez ve dev akisi kirilir
+# (ikinci bin 2026-09-09'da eklenince bu hale geldi).
+default-run = "smith-desktop"
+
+[lib]
+name = "smith_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# "tray-icon": sistem tepsisi (src/tray.rs). Uygulama hep acik calisir; pet
+# penceresi gorev cubugunda yok, tepsi tek geri cagirma yuzeyi.
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.18.1"
+# "net"+"time": Live WebSocket baglantisi ve yeniden deneme gecikmeleri icin.
+tokio = { version = "1.53.1", features = ["sync", "rt", "macros", "rt-multi-thread", "net", "time"] }
+thiserror = "2.0.20"
+# VAD KALIR: Live'in ses izi kapisi ifade sinirlarini bununla buluyor
+# (audio/live.rs -> super::vad). Basamakli hat sokuldu, VAD sokulmedi.
+voice_activity_detector = "0.2.1"
+# NOT — `whisper-rs` 2026-08-17'de KALDIRILDI. Basamakli hat (VAD→STT→LLM→TTS)
+# ulasilamaz durumdaydi ve tek maliyeti derleme yuku olmustu: cmake + LLVM/libclang
+# (bindgen) + `GGML_*` env blogu, olculen 90 sn ve 222 MiB target artifakti.
+# Geri gelmesi gerekiyorsa `audio/stt.rs` ile birlikte bilincli olarak eklenir.
+# "json": Live arac koprusu gateway ile JSON konusuyor (send_json/read_json).
+# default-features kapali kalir (native-tls yerine rustls) — WSL'de openssl-sys
+# derlemesi sorun cikarmisti.
+ureq = { version = "3.4.0", default-features = false, features = ["rustls", "json"] }
+# Gemini Live (speech-to-speech) tasimasi. rustls: OpenSSL derleme derdi yok
+# (WSL'de openssl-sys zaten sorun cikarmisti). Basamakli hattin ~3.4 sn
+# toplamsal gecikmesi yerine tek akis + sunucu tarafli soz kesme.
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+    "connect",
+    "rustls-tls-webpki-roots",
+] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+base64 = "0.22"
+# Gelistirme anahtarlari (SMITH_GEMINI_KEY vb.) repo ici `.env.local`'den
+# yuklenir (gitignore'lu; isletim sistemi env'i her zaman baskindir —
+# dotenvy mevcut degiskeni EZMEZ). Prod pakette dosya bulunmaz, no-op.
+dotenvy = "0.15"
+# EKRAN GORME (kullanici: "ekranimi da gorsun"): Live API video/goruntu karesi
+# kabul ediyor. xcap ekran yakalar, image JPEG'e cevirir. JPEG bilincli tercih:
+# PNG kareleri base64'te cok buyuk olur ve WS'i bogar.
+xcap = "0.7"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+# macOS izin isteme eklentisi (core-foundation vb. macOS-only) — yalniz macOS
+# hedefinde derlenir; Linux/WSL cargo check bunu atlar.
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-macos-permissions = "2.3.0"
+
+# TEK ORNEK kilidi: ikinci baslatma mevcut pencereyi gosterip cikar. Yalniz
+# masaustu hedeflerinde (mobilde eklenti yok). Cargo.lock'a eklenirken mevcut
+# surum pinleri (ozellikle cpal'in windows-core 0.61.2'si) DEGISMEMELI.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# PERFORMANS: native (onnx) kod Rust DEBUG profilinde optimizasyonsuz
+# derlenir; VAD her ~32 ms'de bir karede kosuyor, o yuzden dev'de bile
+# opt-level 3. Kendi kodumuz debug kalir → derleme hizi ve hata ayiklama bozulmaz.
+# (whisper-rs / whisper-rs-sys profilleri 2026-08-17'de kaldirildi: bagimlilik yok.)
+[profile.dev.package.voice_activity_detector]
+opt-level = 3

@@ -1,0 +1,92 @@
+/*
+ * Smith'in yuzu — AURA: yuzey gerilimi olan sivi damla (kimlik konsepti 01).
+ * Face.tsx ile bir butun: karakterin TAMAMI (damla govde, isik halesi, gozler,
+ * agiz, yorunge damlacigi, zemin golgesi) tek canvas'ta (.face-canvas)
+ * cizilir; bu dosya YALNIZ yerlesim ve yuzdurme salinimindan sorumludur.
+ *
+ * Neden burada renk/durum kurali YOK: onceki kimlikte (LED'li kafa) durum
+ * renklerinin bir kismi CSS'teki .face-aura katmanindaydi ve canvas RGB'leri
+ * ile elle senkron tutuluyordu — iki kaynak, sessiz eskime riski. AURA'da
+ * isik atmosferi karakterin kendisinden yayilir; hepsi ayni lerp'lenmis
+ * renkten turetildigi icin tutarsizlik imkansizdir.
+ *
+ * Seffaf zemin notu: canvas'in arka plani tamamen saydamdir; halo canvas
+ * sinirlarindan TASMAZ (cizim alaninin kendisi kirpar). Pet kutusunun disina
+ * isik sizmasi gerekmiyorsa styles.css'teki `.pet-face > .face` kurali
+ * (drop-shadow) yeterli — oradaki aciklamaya bak.
+ */
+
+/* --- kapsayici ----------------------------------------------------------- */
+
+.face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  /* Grid hucresi icinde kucule de dogru olcekle (aksi halde tasar). */
+  min-height: 0;
+  isolation: isolate;
+}
+
+/* --- havada suzulen damla ------------------------------------------------- */
+
+/*
+ * Damla bosta dururken hafifce havada suzuluyormus gibi salinir. Canvas'in
+ * BUTUNUNU tasir (govde + gozler + halo birlikte); ic animasyon (yuzey
+ * dalgasi, nefes, girdap) Face.tsx'in rAF dongusunde.
+ */
+.face-float {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  /* GPU'ya sadece transform degisecegini soyle: her karede layout tetiklenmesin. */
+  will-change: transform;
+  animation: face-float-bob 6.5s ease-in-out infinite alternate;
+}
+
+/* Konusurken biraz daha canli, biraz daha hizli suzulme. */
+.face[data-state='speaking'] .face-float {
+  animation-duration: 5s;
+}
+
+@keyframes face-float-bob {
+  from {
+    transform: translateY(-1.1%) rotate(-0.4deg);
+  }
+  to {
+    transform: translateY(1.1%) rotate(0.4deg);
+  }
+}
+
+/* --- karakter canvas'i ---------------------------------------------------- */
+
+/*
+ * Tum karakter burada cizilir. Kapsayiciyi tam doldurur; damla yaricapi
+ * kisa kenarin 0.33'udur (Face.tsx) — halo ve yorunge damlacigi icin
+ * kenarlarda pay kalir.
+ */
+.face-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* --- erisilebilirlik ----------------------------------------------------- */
+
+/*
+ * Hareket azaltma tercihi: dekoratif suzulmeyi durdur. Canvas tarafi ayrica
+ * kisiliyor (`canvasLoop.ts`: surekli zamanlayici yok, yuz yalniz durum veya
+ * seviye degisince bir kez cizilir): statik ama yine de dolu bir yuz kalir.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .face-float {
+    animation: none;
+  }
+}

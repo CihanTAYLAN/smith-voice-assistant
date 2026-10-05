@@ -1,0 +1,7 @@
+# Smith web — basit nginx imaji (Dokploy).
+# `apps/web` henuz yok; bu servis statik durum sayfasi sunar ve /v1/*'i
+# gateway'e proxy'ler (WebSocket dahil). Gercek web gelince bu imaj degisir.
+FROM nginx:1.27-alpine
+COPY docker/prod/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/prod/web/index.html /usr/share/nginx/html/index.html
+EXPOSE 80

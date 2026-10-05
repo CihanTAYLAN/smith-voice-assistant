@@ -1,0 +1,460 @@
+// Smith veri semasi.
+//
+// Kural: tenant verisi tasiyan HER tablo workspaceId kolonu tasir ve
+// migration'da RLS politikasi alir (bkz. prisma/migrations/*_rls).
+// Workspace ve Actor kok tablolardir; Actor global bir kimliktir,
+// Membership onu bir workspace'e baglar.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id        String   @id // ws_[0-9a-z]{20,32}
+  name      String
+  createdAt DateTime @default(now())
+
+  memberships   Membership[]
+  sessions      Session[]
+  messages      Message[]
+  refreshTokens RefreshToken[]
+  memories      Memory[]
+  memoryGaps    MemoryGap[]
+  agents        Agent[]
+  tasks         Task[]
+  taskComments  TaskComment[]
+  taskEvents    TaskEvent[]
+  agentRuns     AgentRun[]
+  devices       Device[]
+  reminders     Reminder[]
+}
+
+model Actor {
+  id          String   @id // act_[0-9a-z]{20,32}
+  email       String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+
+  // Membership'in RLS'siz kesfi icin denormalize edilmis liste. Actor'da RLS
+  // yok, Membership'te VAR (force) -- bu yuzden "bu eposta hangi
+  // workspace'lere uye" sorusu smith_app rolunde dogrudan Membership'ten
+  // cevaplanamaz (cok-kiracili okuma, RLS'in tam engellemek icin var oldugu
+  // sey). Bu alan sadece KESIF icindir; rol/yetki karari HER ZAMAN gercek
+  // Membership satirina (RLS'li, dogru workspace scope'uyla) bakarak verilir.
+  //
+  // DIKKAT: Membership yazan HER kod yolu (su an: register route + seed.ts)
+  // bu listeyi AYNI transaction'da guncellemek zorundadir. Sozlesmeyle
+  // korunuyor, DB kisiti (trigger) degil -- ucuncu bir yazma yolu (ornegin
+  // "workspace'e davet et") eklenirse trigger'a gecmeyi yeniden degerlendir.
+  workspaceIds String[] @default([])
+
+  memberships    Membership[]
+  sessions       Session[]
+  credential     Credential?
+  refreshTokens  RefreshToken[]
+  devicePairings DevicePairing[]
+  reminders      Reminder[]
+}
+
+// Credential, RefreshToken, DevicePairing global kimlik verisidir (Actor
+// gibi) ve workspaceId tasimaz -- bu yuzden RLS politikasi almazlar, tipki
+// Actor'un almadigi gibi. Bir sifre veya cihaz oturumu bir workspace'e ait
+// degil, bir kisiye aittir; erisim tokenlari mint edilirken workspace secilir.
+
+model Credential {
+  actorId      String   @id
+  passwordHash String
+  updatedAt    DateTime @updatedAt
+
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id      String @id // rtk_[0-9a-z]{20,32}
+  actorId String
+
+  // Bu refresh token'in mint ettigi erisim token'i hangi workspace icindir.
+  // Bir refresh cagrisinda rol BURADAN yeniden okunur (Membership'e karsi) --
+  // erisim token'inin kisa TTL'i normal durumda staleness'i sinirlar, refresh
+  // onu tamamen sifirlar. Workspace'i degistirmek icin yeniden giris gerekir;
+  // bu, V1'in bilincli sinirlamasidir.
+  workspaceId String
+
+  tokenHash String @unique
+
+  // Rotasyon boyunca sabit kalan soy kimligi. Iptal edilmis bir token'in
+  // tekrar sunulmasi (calinti sinyali) ayni family'deki TUM tokenlarin
+  // iptalini tetikler -- onceki projenin uretimde kanitlanmis deseni.
+  family String
+
+  deviceLabel String
+  surface     String // web | cli | ios | watchos | macos | android | windows | channel
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  actor     Actor     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([family])
+}
+
+model DevicePairing {
+  id       String @id // dvp_[0-9a-z]{20,32}
+  codeHash String @unique
+
+  surface String
+  status  String // pending | approved | consumed | denied | expired
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  // Onaydan once hepsi null'dur; onaylayan taraf zaten kimligi dogrulanmis
+  // bir WorkspaceScope tasir, o scope'tan buraya kopyalanir.
+  approvedActorId     String?
+  approvedWorkspaceId String?
+  approvedRole        String?
+
+  approvedActor Actor? @relation(fields: [approvedActorId], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+}
+
+model Membership {
+  workspaceId String
+  actorId     String
+  role        String // owner | admin | member | viewer (@smith/tenancy ROLES)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     Actor     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, actorId])
+  @@index([actorId])
+}
+
+model Session {
+  id          String   @id // ses_[0-9a-z]{20,32}
+  workspaceId String
+  actorId     String
+  surface     String // web | cli | ios | watchos | macos | android | windows | channel
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     Actor     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([workspaceId, actorId])
+}
+
+model Reminder {
+  id             String    @id // rem_[0-9a-z]{20,32}
+  workspaceId    String
+  actorId        String
+  text           String    @db.VarChar(500)
+  dueAt          DateTime  @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  deliveredAt    DateTime? @db.Timestamptz(3)
+  cancelledAt    DateTime? @db.Timestamptz(3)
+  claimToken     String?
+  claimExpiresAt DateTime? @db.Timestamptz(3)
+  idempotencyKey String?   @db.VarChar(80)
+  source         String    @default("voice")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     Actor     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, actorId, idempotencyKey])
+  @@index([workspaceId, deliveredAt, cancelledAt, dueAt])
+}
+
+model Message {
+  id              String   @id // msg_[0-9a-z]{20,32}
+  workspaceId     String
+  sessionId       String
+  authorRole      String // user | assistant
+  text            String
+  inputTokens     Int?
+  outputTokens    Int?
+  clientMessageId String?  @db.VarChar(64)
+  createdAt       DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, clientMessageId])
+  @@index([workspaceId, sessionId, createdAt])
+}
+
+// Semantik hafiza. TENANT verisidir → workspaceId tasir ve RLS politikasi alir
+// (bkz. rls migration). embedding kolonu pgvector; Prisma Unsupported olarak
+// bilir, benzerlik aramasi $queryRaw ile yapilir (scoped tx icinde, yani RLS
+// oturum degiskeni set edilmis halde — arama otomatik tenant'a kisitli).
+model Memory {
+  id          String   @id // mem_[0-9a-z]{20,32}
+  workspaceId String
+  // Kaynak kayit: hangi mesajdan/nottan turedi. Ayni kaynak iki kez
+  // indekslenmesin diye (sourceType, sourceId) benzersiz.
+  sourceType  String // message | note
+  sourceId    String
+  content     String
+  embedding   Unsupported("vector(768)")?
+  // Gizlilik sinifi (ADR 0004): public | personal | secret. Retrieval buna
+  // gore filtreler; Live modunda `secret` buluttaki modele enjekte edilmez.
+  sensitivity String   @default("personal")
+  status      String   @default("active") // active | superseded
+  supersededById String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
+}
+
+model MemoryGap {
+  id              String   @id // gap_[0-9a-z]{20,32}
+  workspaceId     String
+  question        String
+  reason          String
+  sourceMemoryIds String[]
+  dedupeKey       String
+  status          String   @default("open") // open | asked | answered | dismissed
+  answer          String?
+  answerMemoryId  String?
+  createdAt       DateTime @default(now())
+  askedAt         DateTime?
+  resolvedAt      DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, status, createdAt])
+}
+
+// Kayitli cihazlar (device registry, Faz 3). TENANT verisidir → workspaceId +
+// RLS. Bir istemci `hello` ile baglaninca yuzeyini (surface) bildirir; bu tablo
+// o cihazin SUREKLILIK kaydidir (lastSeenAt her baglantida guncellenir).
+// Gecici DevicePairing eslestirme KODUDUR; bu ise onaylanmis/aktif cihazdir.
+// Faz 1 varsayimi: workspace basina yuzey basina tek cihaz (@@unique) — cok
+// cihaz/yuzey gerekince istemci-tarafli kararli bir kimlik eklenir.
+model Device {
+  id          String   @id // dev_[0-9a-z]{20,32}
+  workspaceId String
+  surface     String // web | cli | ios | watchos | macos | android | windows | channel
+  // Insan-okunur ad; ilk kayitta surface'ten turetilir, istemci sonra guncelleyebilir.
+  name        String
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, surface])
+  @@index([workspaceId, lastSeenAt])
+}
+
+// ---------------------------------------------------------------------------
+// Mission Control (ADR 0007): ekip kaydi + gorev panosu + kosu kaydi.
+//
+// Bes tablonun tamami TENANT verisidir → workspaceId NOT NULL tasir ve RLS
+// politikasi alir. Panonun tek bir kullanicisi olmasi (Faz 1) bunu
+// gevsetmez: kapsam bir yapilandirma durumu degil, tasinmasi zorunlu bir
+// yetkidir.
+// ---------------------------------------------------------------------------
+
+/// Ekip uyesi. Faz 1'de her ajan Cihan'in kendi is gucudur; kimligini SOUL
+/// metni, sinirlarini workRoots + allowedTools, yerini device belirler.
+model Agent {
+  id          String @id // agt_[0-9a-z]{20,32}
+  workspaceId String
+
+  /// @mention adi ve CLI kimligi ("nova"). Workspace icinde benzersiz.
+  slug        String
+  displayName String
+  /// Kisa rol etiketi: "kod", "arastirma", "icerik". Org semasinda gorunur.
+  role        String
+
+  /// Ajanin kimligi ve calisma kurallari (markdown). Executor bunu sistem
+  /// prompt'u olarak gecer, pano uzerinden duzenlenebilir. Bu alan ajanin
+  /// davranisinin TEK kaynagidir — kod icinde ikinci bir kisilik tanimi yok.
+  soul  String
+  /// Executor'a gecilecek model; null ise executor varsayilanini kullanir.
+  model String?
+
+  /// Org semasi: kime rapor verir. null = zirve. Smith'in kendisi bir satir
+  /// DEGILDIR; o panonun sahibi, ekip uyesi degil.
+  parentId String?
+
+  /// Gorevin kosacagi hedef: wsl | m2 | server. Cihaz kaydi (ADR 0003 adim 2)
+  /// geldiginde bu alan device id'sine baglanir.
+  device String @default("wsl")
+
+  /// Ajanin dosya sistemi sinirlari. Executor YALNIZ bu koklere erisim verir
+  /// (--add-dir); bos liste = dosya isi olmayan ajan. Guvenlik kapisi burasi,
+  /// SOUL metni degil: talimat tavsiyedir, allowlist mekanizmadir.
+  workRoots String[] @default([])
+  /// Izin verilen arac adlari (Claude Code --allowedTools). Bos liste =
+  /// executor'un guvenli varsayilani.
+  allowedTools String[] @default([])
+
+  status     String    @default("idle") // idle | working | offline
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent    Agent?     @relation("AgentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Agent[]    @relation("AgentHierarchy")
+  tasks     Task[]
+  comments  TaskComment[]
+  events    TaskEvent[]
+  runs      AgentRun[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+}
+
+/// Pano kaydi. Durum makinesi @smith/mission'daki TASK_TRANSITIONS'ta tanimli;
+/// gecersiz gecis repo katmaninda reddedilir.
+model Task {
+  id          String @id // tsk_[0-9a-z]{20,32}
+  workspaceId String
+
+  title  String
+  /// Ajana verilecek is tanimi — executor'un prompt govdesi.
+  detail String?
+
+  status String @default("inbox") // inbox | assigned | in_progress | review | done | blocked
+  /// 1 = yuksek, 2 = normal, 3 = dusuk.
+  priority Int @default(2)
+
+  assigneeId String?
+  parentId   String?
+
+  /// Ajanin teslim ozeti (executor yazar).
+  deliverable String?
+  /// Uretilen dosyanin cihaz-yerel yolu. Icerik DB'ye tasinmaz; pano yolu
+  /// gosterir, dosya kaldigi yerde kalir.
+  artifactPath String?
+
+  /// Gorevi kim acti: act_* (kullanici) veya "smith" (asistan sesle actiysa).
+  createdBy String
+
+  dueAt      DateTime?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee  Agent?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  parent    Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  subtasks  Task[]        @relation("TaskSubtasks")
+  comments  TaskComment[]
+  events    TaskEvent[]
+  runs      AgentRun[]
+
+  @@index([workspaceId, status, priority])
+  @@index([workspaceId, assigneeId])
+}
+
+/// Gorev uzerindeki thread. kind alani ekip dinamigini tasir: bir ajan isi
+/// claim eder, digeri review yazar, gerekirse refute ile itiraz eder.
+model TaskComment {
+  id          String @id // tcm_[0-9a-z]{20,32}
+  workspaceId String
+  taskId      String
+
+  authorType String // user | agent | system
+  /// act_* | agt_* | "system". authorType ile birlikte okunur.
+  authorId String
+  /// authorType = agent oldugunda authorId'nin iliskisel karsiligi; kullanici
+  /// ve sistem yorumlarinda null.
+  agentId String?
+  /// note | claim | review | refute | deliver
+  kind String @default("note")
+  body String
+  /// Bu yorumda @mention edilen ajan slug'lari — bildirim yolu.
+  mentions String[] @default([])
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent     Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, taskId, createdAt])
+}
+
+/// Append-only etkinlik akisi. Panonun "ne oldu" kaydi; asla guncellenmez.
+/// Gorev silinse bile ajan gecmisi kalsin diye taskId nullable + SetNull.
+model TaskEvent {
+  id          String  @id // tev_[0-9a-z]{20,32}
+  workspaceId String
+  taskId      String?
+  agentId     String?
+
+  /// created | assigned | status | comment | run_started | run_finished | run_abandoned | error
+  kind   String
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  agent     Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+}
+
+/// Bir ajanin bir gorev icin yaptigi tek kosu. Aynı gorev icin iki kez
+/// kosulmasini engellemek (idempotency), maliyeti ajan basina olcmek ve
+/// basarisiz kosunun izini surmek icin ayri tablo.
+model AgentRun {
+  id          String @id // run_[0-9a-z]{20,32}
+  workspaceId String
+  taskId      String
+  agentId     String
+
+  device String
+  /// Kosuyu yapan motor: claude-code (Faz 1'in tek motoru).
+  engine String @default("claude-code")
+  /// queued | running | ok | failed | cancelled. Atama 'queued' satirini
+  /// yaratir; consumer yalniz 'queued' gordugunde kosar (idempotency capasi).
+  /// Lease'i dolmus 'running' satir yeniden kosulmaz, 'failed' yapilir.
+  status String @default("queued")
+
+  /// Motorun kendi oturum kimligi (Claude Code --session-id). Kosunun izini
+  /// motorun kendi kayitlarinda surmeyi saglar.
+  externalSessionId String?
+  exitCode          Int?
+
+  /// Maliyet ve token: motorun raporladigi deger, tahmin degil.
+  costMicros   Int? @default(0)
+  inputTokens  Int?
+  outputTokens Int?
+
+  /// Ham stdout/stderr'in cihaz-yerel dosya yolu. Log govdesi DB'ye girmez.
+  logPath String?
+
+  startedAt   DateTime  @default(now())
+  /// Calisan kosunun canlilik damgasi (lease). Worker motor calisirken
+  /// periyodik tazeler; suresi dolan 'running' kosu sahipsiz sayilir.
+  heartbeatAt DateTime?
+  finishedAt  DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent     Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, taskId])
+  @@index([workspaceId, agentId, startedAt])
+}

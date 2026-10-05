@@ -1,0 +1,678 @@
+@import './hud.css';
+@import './mind.css';
+
+/*
+ * Smith masaustu: SEFFAF HUD + masaustu pet.
+ *
+ * Kullanici mandasi (2026-08-14): "Pencerede gormek istemiyorum, Tony Stark
+ * tarzi seffaf, pet gibi dolassin; kosede sabit bir listede baglanti/mikrofon/
+ * ekran/arac/hafiza/dinliyor/hoparlor bilgileri olsun."
+ *
+ * Bu dosya: tasarim belirtecleri, taban kurallar, sahne, pet, bildirim,
+ * konusma balonlari ve pencere olcegi. Pano `hud.css`te, dusunce baloncugu ve
+ * zihin dokumu `mind.css`te.
+ *
+ * BU DOSYANIN EN KRITIK KURALI: zemin YOK. Pencere cercevesiz ve seffaf
+ * (Rust tarafi), bu yuzden `body`/`.stage` opak gradyan cizemez. Gorunen tek
+ * sey adalardir: pet, kose panosu, konusma balonlari, dusunce baloncugu.
+ *
+ * OKUNABILIRLIK SOZLESMESI (seffaf zeminin bedeli)
+ *  - Hicbir metin cam bir yuzey olmadan cizilmez. Zemin kullanicinin masaustu:
+ *    beyaz da olabilir, koyu da. Cozum tek: yeterince opak KOYU dolgu + acik
+ *    kenar cizgisi + disa koyu golge halkasi. Boylece panel hem beyaz zeminde
+ *    (koyu kutu) hem koyu zeminde (acik kenar) kendini belli eder.
+ *  - `backdrop-filter` SEFFAF pencerede masaustunu ORNEKLEMEZ (masaustu bizim
+ *    kompozisyon agacimizda degil). Yani cam hissi dolgudan gelir; blur yalniz
+ *    kendi icerigimizi yumusatir. Bu yuzden dolgunun alfasi "blur var"
+ *    varsayimiyla DUSURULMEZ.
+ *  - Metne ek olarak koyu `text-shadow`: blur'un altindan sizan parlak
+ *    piksellere karsi son savunma.
+ *
+ * TIKLAMA GECIRGENLIGI
+ *  - `.stage` (tum pencere) `pointer-events: none`; yalniz adalar `auto`. Bu
+ *    CSS katmanidir ve sadece webview icinde gecerlidir.
+ *  - Isletim sistemi katmani Rust'ta: useHitAreas.ts adalarin dikdortgenlerini
+ *    `window_set_hit_areas` ile bildirir, Rust'taki imlec gozcusu gecirgenligi
+ *    cevirir. CSS tek basina pencereyi gecirgen YAPMAZ.
+ *  - `.stage[data-inert='true']`: gozcu gecirgene gecmek uzere, takili kalan
+ *    `:hover` gorunumleri kapatilir (webview artik fare olayi almayacagi icin
+ *    tarayici `:hover`i kendiliginden temizleyemez).
+ *
+ * PENCERE OLCEGI: varsayilan 420x520, Rust minimum 320x360, ust sinir yok.
+ *  - Genis pencere (>= 600px): iki kolon. Sol kolon (pet + bildirim + balonlar)
+ *    esner, sag kolon panonun genisligidir. Pano ASLA pet'in uzerine binmez.
+ *  - Dar pencere (< 600px, varsayilan pencere dahil): tek kolon, pet ustte, pano
+ *    altta ve varsayilan DARALTILMIS (`useHudCollapse`, ayni esik). Ayrintili
+ *    pano bu boyda tum yuksekligi yutar ve pet gorunmez olurdu.
+ *  - Pet'in olcegi `.field`in KENDI yuksekligine gore olculur (`cqh`): pano
+ *    acilip alan daralinca pet de kuculur, ust uste binmez.
+ */
+
+:root {
+  /* Palet. --bg-0 SILINMEZ: yuz govde golgesi ve gelistirme zeminleri ona baglanir. */
+  --bg-0: #0b0418;
+  --ink: #f3eeff;
+  --ink-dim: #d1c9e8;
+  --cyan: #43e6ff;
+  --magenta: #ff5cf0;
+  --violet: #8b5cff;
+  --alarm: #ffdbe4;
+
+  /*
+   * Anlamsal durum renkleri: marka rengiyle (magenta) KASITLI ayri. OLCULDU:
+   * eskiden hem "Smith konusuyor" hem panodaki "warn"/"fault" ayni magenta
+   * ailesindeydi; bir bakista "konusuyor mu, sorun mu var" ayirt edilemiyordu.
+   * Simdi magenta yalniz SES CANLI (konusuyor/dinliyor) anlamina gelir;
+   * warn=amber, fault/danger=kirmizi-turuncu, ikisi de zaman temasindan
+   * BAGIMSIZ (bkz. asagidaki --accent-*): anlam hicbir zaman renk kaymasiyla
+   * degismemeli.
+   */
+  --warning: #ffc45c;
+  --danger: #ff665c;
+
+  /*
+   * Zamana-uyarlanan AKSAN katmani (Sabah/Gun/Gunbatimi/Gece, asagida).
+   * `documentElement[data-time-theme]`i `useTimeTheme` yazar: uretimde cihaz
+   * saatine gore otomatik (`timeTheme.ts`), gelistirmede `?theme=…` bunu
+   * gersiz birakir. Attribute hic yoksa varsayilan = bugunku kimlik; gorsel
+   * sicrama olmaz.
+   */
+  --accent-primary: var(--violet);
+  --accent-secondary: var(--cyan);
+  --accent-glow: var(--violet);
+
+  /*
+   * Cam yuzeyler. Alfa degerleri OLCULEREK secildi: 0.74 koyu dolgu beyaz
+   * masaustu uzerinde ~%26 parlaklik birakir; uzerindeki --ink metni
+   * okunakli kalir. Daha saydami "guzel" ama beyaz zeminde okunmuyor.
+   */
+  --glass: rgba(12, 6, 28, 0.74);
+  /* Balonlar birincil METIN yuzeyi: dolgusu panelden cok az saydam olabilir. */
+  --glass-soft: rgba(14, 7, 32, 0.7);
+  --glass-edge: rgba(196, 208, 255, 0.22);
+  --glass-blur: blur(16px) saturate(1.2);
+  /* Cift golge: dis koyu halka (acik masaustunde kenari ayirir) + yumusak dusme golgesi. */
+  --lift: 0 0 0 1px rgba(0, 0, 0, 0.38), 0 10px 28px rgba(0, 0, 0, 0.45);
+  --text-guard: 0 1px 2px rgba(0, 0, 0, 0.75);
+
+  /* Kose panosunun genisligi (genis pencerede grid'in sag kolonu). */
+  --hud-w: clamp(270px, 32vw, 340px);
+  --edge: 10px;
+}
+
+/*
+ * Dort zaman temasi: yalniz --accent-* uctur. Geometri, bosluk, tipografi ve
+ * bilgi mimarisi DEGISMEZ; semantik durum renkleri (--warning/--danger,
+ * .sig[data-tone] tonlari) burada YOK, cunku anlam zamana gore kaymamali:
+ * "Hafiza: yazma bloke" Gece temasinda da bloke okunmali.
+ */
+:root[data-time-theme='morning'] {
+  --accent-primary: #c9a7ff;
+  --accent-secondary: #ffb58e;
+  --accent-glow: #f7a8d8;
+}
+
+:root[data-time-theme='day'] {
+  --accent-primary: #46c7ff;
+  --accent-secondary: #71afff;
+  --accent-glow: #66e7dc;
+}
+
+:root[data-time-theme='sunset'] {
+  --accent-primary: #ff906b;
+  --accent-secondary: #ffc365;
+  --accent-glow: #f48ba6;
+}
+
+:root[data-time-theme='night'] {
+  --accent-primary: #8b6cff;
+  --accent-secondary: #b569ff;
+  --accent-glow: #55afff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/*
+ * ZEMIN YOK. `transparent` sart: Tauri'nin seffaf penceresinde body opak
+ * kalirsa pencere yine kutu gibi gorunur ve tum tasarim coker.
+ */
+body {
+  background: transparent;
+  color: var(--ink);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+/*
+ * YALNIZ GELISTIRME (`useDevBackdrop`, `?backdrop=check|light|dark`).
+ * Tarayici onizlemesinde seffaflik beyaz gorunur; adalarin yerlesimini ve cam
+ * kontrastini olcmek icin gecici zemin. Uretim derlemesinde bu attribute HIC
+ * yazilmaz (`import.meta.env.DEV` freni), kurallar olu kalir.
+ */
+body[data-dev-backdrop='check'] {
+  background-color: #8a8f98;
+  background-image:
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.55) 25%,
+      transparent 25% 75%,
+      rgba(255, 255, 255, 0.55) 75%
+    ),
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.55) 25%,
+      transparent 25% 75%,
+      rgba(255, 255, 255, 0.55) 75%
+    );
+  background-size: 48px 48px;
+  background-position:
+    0 0,
+    24px 24px;
+}
+
+body[data-dev-backdrop='light'] {
+  background: #f4f5f8;
+}
+
+body[data-dev-backdrop='dark'] {
+  background: #101218;
+}
+
+/* --- sahne: iki kolon, hicbir dolgu ------------------------------------- */
+
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--edge);
+  height: 100%;
+  padding: var(--edge);
+  background: transparent;
+  /* Adalar arasindaki her yer gecirgen (webview ici katman). */
+  pointer-events: none;
+}
+
+/*
+ * Sol kolon: pet + bildirim + balonlar, dikey ortali. `container-type: size`:
+ * pet bu alanin kendi yuksekligine gore olceklenir (bkz. `.pet`).
+ */
+.field {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  container-type: size;
+}
+
+/* --- ada 1: pet -------------------------------------------------------- */
+
+/*
+ * Pet = yuz + altinda enerji seridi + arkada halo. Pencerenin surukleme
+ * tutamagi da burasidir (`useWindowCommands` `startDragging`).
+ *
+ * Cocuklar `pointer-events: none`: yuz, halo ve dalga tamamen dekoratif, hicbiri
+ * tiklanabilir degil. Boylece pet TEK bir yuzey gibi davranir: surukleme ve
+ * hover mantigi tek elemanda toplanir, canvas fare olaylarina karismaz.
+ *
+ * Genislik `.field`in yuksekligine baglidir (57cqh ~ yuzun ve enerji seridinin
+ * alana siymasi). `cqh` bilmeyen webview'de ilk satir (57vh) gecerli kalir.
+ */
+.pet {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 300px, 57vh);
+  width: min(100%, 300px, 57cqh);
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.pet:active {
+  cursor: grabbing;
+}
+
+.pet-halo,
+.pet-face,
+.pet-wave {
+  pointer-events: none;
+}
+
+/*
+ * Halo: yuzun arkasinda yumusak KOYU kuyu. Dekorasyon degil, okunabilirlik:
+ * beyaz masaustunde damlanin isikli govdesi zemine karisiyordu.
+ *
+ * RENKLI isigi BILINCLI olarak eklemiyoruz: duruma gore degisen isik
+ * (cyan/mor/magenta) AURA kimliginde karakterin kendi canvas'indan yayilir
+ * (Face.tsx halo katmani). Iki katman ust uste binerse seffaf zeminde kirli
+ * bir leke olusuyordu; olculdu ve kaldirildi.
+ *
+ * Daire (kare degil) olmasi sart: `inset` ile kutu verirsek blur sonrasi
+ * kenarlar seffaf zeminde DIKDORTGEN olarak okunuyor.
+ */
+.pet-halo {
+  position: absolute;
+  top: 2%;
+  z-index: 0;
+  width: 94%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 48%,
+    rgba(8, 4, 20, 0.5),
+    rgba(8, 4, 20, 0.22) 52%,
+    transparent 68%
+  );
+  filter: blur(18px);
+  opacity: 0.85;
+  transition: opacity 800ms ease;
+  animation: halo-drift 18s ease-in-out infinite alternate;
+}
+
+.stage[data-speaking='true'] .pet-halo {
+  opacity: 1;
+}
+
+.stage[data-on='false'] .pet-halo {
+  opacity: 0.5;
+}
+
+@keyframes halo-drift {
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.5%, 1%, 0) scale(1.05);
+  }
+}
+
+/*
+ * Yuzun kutusu. Oran 4:3.2, face.css'teki 4:3 kafaya %6 dikey nefes payi
+ * birakir (float animasyonunun ucu kirpilmasin). Genislik `.pet`ten gelir,
+ * yukseklik orandan turer; face.css `.face`'e %100/%100 verdigi icin tam oturur.
+ */
+.pet-face {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 4 / 3.2;
+}
+
+/*
+ * SEFFAF ZEMIN REGRESYONU: OLCULDU VE DUZELTILDI. Eski kimlikte (LED'li kafa)
+ * `.face`'e `overflow: hidden` verilmisti ve kutudan buyuk bir katman kirpma
+ * cizgisi olusturuyordu: seffaf zeminde kirpma kenari masaustune karsi keskin
+ * bir DIKDORTGEN olarak okunuyordu. AURA kimliginde karakter tek canvas'tir ve
+ * halo canvas sinirindan tasmaz; yine de kural burada kalir: drop-shadow
+ * damlayi masaustunden koparir (mor isima AURA'nin kimlik rengi, #8b5cff) ve
+ * kutudan tasan bir katman eklenirse kirpma regresyonu geri gelmez.
+ */
+.pet-face > .face {
+  overflow: visible;
+  filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 22px rgba(139, 92, 255, 0.32));
+}
+
+/* Enerji seridi: yuze bitisik, pet'in bir parcasi gibi okunur. */
+.pet-wave {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: clamp(26px, 6vh, 46px);
+  margin-top: -4px;
+}
+
+.viz {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+/* --- bildirim (bos/hata/ret) -------------------------------------------- */
+
+/*
+ * Tek cumlelik, suclamayan bilgi. Akista durur (absolute DEGIL): pet'i ortmez,
+ * kendine yer acar. Cam yuzey: seffaf zeminde okunabilirligin sarti.
+ */
+.notice {
+  max-width: min(100%, 380px);
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
+  background: var(--glass);
+  box-shadow: var(--lift);
+  backdrop-filter: var(--glass-blur);
+  pointer-events: auto;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  text-shadow: var(--text-guard);
+}
+
+/* Ariza: magentadan bilincli ayri (bkz. hud.css `.sig[data-tone='warn']` notu). */
+.notice[data-kind='fault'] {
+  border-color: rgba(255, 102, 92, 0.5);
+  background: rgba(64, 16, 12, 0.82);
+  color: var(--alarm);
+}
+
+/*
+ * Ses izi kapisinin karari: ARIZA DEGIL, politika. Kirmizi kullanmiyoruz
+ * (bir sey bozulmadi) ama gormezden gelinemeyecek kadar da belirgin: mor
+ * cerceve + tam parlaklikta metin.
+ */
+.notice[data-kind='gate'] {
+  border-color: rgba(139, 92, 255, 0.6);
+  background: rgba(26, 12, 56, 0.84);
+  color: var(--ink);
+}
+
+/* --- ada 3: konusma balonlari ------------------------------------------ */
+
+/*
+ * Sohbet penceresi DEGIL: son birkac replik, cam balonlar halinde, eskiler
+ * sonerek geri cekilir. Ust kenar maskesi metnin pet'in icine karisarak
+ * bitmesini saglar.
+ */
+.stream {
+  display: flex;
+  width: min(100%, 420px);
+  max-height: 30vh;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+  mask-image: linear-gradient(to bottom, transparent, #000 20px);
+}
+
+.stream::-webkit-scrollbar {
+  display: none;
+}
+
+.bubble {
+  display: flex;
+  max-width: 92%;
+  align-items: baseline;
+  align-self: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 13px 13px 13px 5px;
+  background: var(--glass-soft);
+  box-shadow: var(--lift);
+  backdrop-filter: var(--glass-blur);
+  font-size: 13.5px;
+  line-height: 1.4;
+  animation: rise 320ms ease;
+  transition: border-color 300ms ease;
+  text-shadow: var(--text-guard);
+}
+
+/* Kullanici sagda, Smith solda: kimin konustugu OKUNMADAN once anlasilir
+   (gorsel rol isareti; yazili etiket ekran okuyucuya `.sr` ile verilir). */
+.bubble[data-role='user'] {
+  align-self: flex-end;
+  border-radius: 13px 13px 5px;
+  border-color: rgba(67, 230, 255, 0.3);
+  text-align: right;
+}
+
+.bubble[data-role='assistant'] {
+  border-color: rgba(255, 92, 240, 0.28);
+}
+
+/*
+ * Sonme basamaklari: 0 = son replik, buyudukce geri cekilir.
+ *
+ * OLCULDU VE DUZELTILDI (iki kez). Ilk surum eleman `opacity`'sini 1 → 0.32'ye
+ * dusuruyordu: SEFFAF pencerede opacity CAM DOLGUYU da soldurur, beyaz
+ * masaustunde balon tamamen kaybolur. Ikinci surum opacity'yi 0.88'e ve metin
+ * alfasini 0.54'e indiriyordu; beyaz masaustunde en eski replik 2.65:1 kontrastla
+ * (WCAG AA kucuk metin: 4.5:1) okunmaz kaliyordu.
+ *
+ * Cozum: eleman opacity'si HIC dusmez (dolgu sabit, okunabilir zemin daima var).
+ * Geri cekilme yalniz metin alfasi (1 → 0.82) ve kenar ile anlatilir; en kotu
+ * durumda (beyaz masaustu, kesilmis eski replik) kontrast >= 4.5:1.
+ * `mainCss.test.ts` bu tabani korur.
+ */
+.bubble[data-depth='1'] .said {
+  color: rgba(243, 238, 255, 0.94);
+}
+.bubble[data-depth='2'] .said {
+  color: rgba(243, 238, 255, 0.88);
+}
+.bubble[data-depth='3'] .said {
+  color: rgba(243, 238, 255, 0.82);
+}
+
+/* Eski balonlarin kenari da geri cekilsin: en son replik tek "canli" kenardir. */
+.bubble:not([data-depth='0']) {
+  border-color: rgba(196, 208, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.said {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  transition: color 300ms ease;
+}
+
+.bubble[data-role='assistant'] .said {
+  color: #fbf2ff;
+}
+
+/* Kesilen cevap: hafif soluk metin + kucuk etiket. Silinmez: kesildigi GORUNUR. */
+.bubble[data-interrupted='true'] .said {
+  opacity: 0.92;
+}
+
+.cut {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid rgba(233, 226, 255, 0.2);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/*
+ * Yumusak giris. BILINCLI olarak `to` bloku YOK ve fill-mode verilmiyor:
+ * ortulu bitis degeri balonun KENDI opacity'sidir. Bir basamak ileride eleman
+ * opacity'si yeniden verilirse animasyon onu ezmez.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.hint {
+  align-self: center;
+  color: var(--ink-dim);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+/* Yalniz ekran okuyucu icin: balonda rol etiketi (gorsel rol hizalamayla). */
+.sr {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- PLASMA katmani (2026-09-25) -----------------------------------------
+
+   `.hud`, `.notice` ve `.mind-thought` birer plazma yuzeyidir: sivi cam
+   WebGL canvas'inda cizilir (`ground="clear"`: zemin alani CIZILMEZ, pencere
+   seffaf kalir; bkz. plasma/deck.tsx). WebGL destekleniyorken bu elemanlarin
+   CSS cam dolgusu kapatilir ki malzeme gorunsun. Desteklenmiyorsa plasma-ui
+   `plasma-fallback` sinifini basar ve dolguyu kendisi verir (`tint` x
+   `opacity`, satir ici stil; `HUD_SURFACE`), yani CSS'teki cam dolgu o modda da
+   gecerli degildir: okunabilirlik sozlesmesi `HUD_SURFACE` degerlerine baglidir
+   (`mainCss.test.ts`). Pano (`.hud`) kendi kuralini hud.css'te tasir.
+
+   `.bubble` KASITLI disarida: asimetrik balon kosesi (13/5px) ve depth-sonme
+   basamaklari plazmanin tekduze yaricap modeline sigmaz; kucuk elemanlar
+   yuzey DEGIL, yuzeyin ustunde duz HTML olmali (plasma-ui dokumani).
+   Zihin dokumu ust katmanda bir `<dialog>`dur ve plazma yuzeyi DEGILDIR. */
+.notice.plasma-panel:not(.plasma-fallback),
+.mind-thought.plasma-panel:not(.plasma-fallback) {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* --- pencere olcegi ----------------------------------------------------- */
+
+/* Genis pencere: metin okunmaz uzunluga cikmasin, pet sisirilmesin; yalniz nefes alani buyur. */
+@media (min-width: 1100px) {
+  :root {
+    --edge: 14px;
+  }
+  .bubble {
+    font-size: 14.5px;
+  }
+}
+
+/*
+ * DAR PENCERE (< 600px; varsayilan 420x520 ve minimum 320x360 buraya duser).
+ * ESIK `useHudCollapse` ile AYNI olmali.
+ *
+ * Tek kolon: pet ustte (kalan yukseklik), pano altta. Pano DOM'da zaten
+ * sonradir, yani odak sirasi gorsel siraya uyar. Pano varsayilan daraltilmis
+ * gelir (marka + durum + kacis dugmeleri); acilirsa `max-height` ile sinirli
+ * kalir ve kendi icinde kayar, pet kalan alanda kuculur.
+ *
+ * ONCEDEN VAR OLAN HATA, OLCULDU: ayrintili pano yan yana sigmayinca ustte
+ * tek kolona geciyordu, 520px yukseklikte tum pencereyi kapliyor ve pet'in
+ * ustune biniyordu.
+ */
+@media (max-width: 599px) {
+  :root {
+    --edge: 8px;
+  }
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .hud {
+    width: auto;
+    align-self: end;
+    max-height: 72vh;
+    max-height: 72dvh;
+  }
+  .bubble {
+    font-size: 13px;
+  }
+}
+
+/* En dar hal (Rust minimumu 320px): kenar boslugu ve ikon butcesi kisilir. */
+@media (max-width: 400px) {
+  :root {
+    --edge: 6px;
+  }
+  .hud {
+    padding: 7px 7px 8px;
+    gap: 6px;
+  }
+  .sig {
+    gap: 5px;
+    padding: 2px 4px;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
+  }
+  .sig-icon {
+    display: none;
+  }
+}
+
+/*
+ * Kisa pencere: balon alani kisilir, pet ayakta kalir; pano daha sik dizilir
+ * (hedef boyutlari ayni kalir, yalniz bosluklar kisilir) ve kalan tasma panonun
+ * kendi icinde kayar.
+ */
+@media (max-height: 560px) {
+  .stream {
+    max-height: 26vh;
+  }
+  .field {
+    gap: 7px;
+  }
+  .hud {
+    gap: 5px;
+    padding-block: 6px;
+  }
+}
+
+/*
+ * EN KISA HAL: Rust'taki minimum pencere yuksekligi 360. Pet + konusma akisi
+ * + kenarlar zaten butun alani yiyor; uc kabarciklik yigin (~76px) buraya
+ * SIGMAZ ve pet'i pencerenin disina iterdi. Tasirmak yerine gizliyoruz: ayni
+ * bilgi panodaki "Arac" satirinda ve durum cumlesinde zaten var, yani hicbir
+ * sey KAYBOLMUYOR. Gizlenen elemanin `getBoundingClientRect()`i sifirlanir;
+ * `collectHitAreas` sifir olculu kutulari atladigi icin hayalet bir hit alani
+ * da olusmaz.
+ */
+@media (max-height: 440px) {
+  .mind {
+    display: none;
+  }
+}
+
+/* --- erisilebilirlik ---------------------------------------------------- */
+
+/*
+ * Hareket azaltma tercihi: dekoratif hareket durur, RENK ve durum bilgisi
+ * kalir (bilgi tasiyan hicbir sey animasyona bagli degil). Canvas tarafi
+ * `canvasLoop.ts` ile ayri kisitlanir (surekli zamanlayici yok).
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pet-halo,
+  .hud[data-on='true'] .pulse,
+  .stage[data-speaking='true'] .pulse,
+  .sig[data-tone='pending'] .sig-dot,
+  .bubble,
+  .mind-thought,
+  .mind-tail {
+    animation: none;
+  }
+  .pet-halo {
+    transition: none;
+  }
+}

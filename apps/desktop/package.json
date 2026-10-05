@@ -1,0 +1,46 @@
+{
+  "name": "@smith/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smith masaustu istemcisi (Tauri 2 + React/Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:exe": "tauri build --no-bundle",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@cruxgarden/plasma-ui": "catalog:",
+    "@mantine/core": "catalog:",
+    "@mantine/hooks": "catalog:",
+    "@tauri-apps/api": "catalog:",
+    "codemirror": "catalog:",
+    "@codemirror/lang-markdown": "catalog:",
+    "@codemirror/theme-one-dark": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tauri-plugin-macos-permissions-api": "^2.3.0"
+  },
+  "devDependencies": {
+    "@smith/eslint-config": "workspace:*",
+    "@smith/tsconfig": "workspace:*",
+    "@tauri-apps/cli": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

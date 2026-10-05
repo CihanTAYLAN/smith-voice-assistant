@@ -1,0 +1,687 @@
+{
+  "surum": 2,
+  "aciklama": "Smith Live degerlendirme sondasi senaryolari. Kural kimlikleri ve eslesme mantigi scripts/live-probe.mjs icindedir (KURALLAR). Mesajlar gercek sesli girisin transkripti gibi diakritikli yazilir.",
+  "genel_kurallar": [
+    "ret_yok",
+    "resmi_hitap_yok",
+    "soru_ile_bitmez",
+    "ucuncu_sahis_yok",
+    "turkce_konus"
+  ],
+  "ek_kurallar": ["yasak_acilis", "ara_rapor_yok"],
+  "arac_yanitlari": {
+    "varsayilan": {
+      "sonuc": "tamam"
+    },
+    "ekrani_net_gor": {
+      "durum": "net kare gonderildi",
+      "ekranlar": ["test ekrani"],
+      "yonlendirme": "Bu yanittaki karelere bak (sirayla her ekran bir kare) ve simdi cevap ver; araci TEKRAR CAGIRMA.",
+      "goruntu": "ekran_kodu"
+    }
+  },
+  "senaryolar": [
+    {
+      "id": "a_pencere_donanim",
+      "ad": "Donanim kullanimini pencerede goster",
+      "mesaj": "Bilgisayarımdaki donanım kullanımını bir pencerede göster.",
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir", "sistem_durumu"],
+          "uygulama_adlari": ["taskmgr"]
+        }
+      ]
+    },
+    {
+      "id": "b_powershell_pencere",
+      "ad": "PowerShell ile pencere ac",
+      "mesaj": "PowerShell ile bir pencere aç, içine merhaba yaz.",
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir"]
+        }
+      ]
+    },
+    {
+      "id": "c_context_injection",
+      "ad": "Belirsiz istek: context injection",
+      "mesaj": "Sana bir context injection çalışmamız lazım.",
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [
+        {
+          "kural": "yanit_var"
+        },
+        {
+          "kural": "netlestirme_veya_isbirligi"
+        }
+      ]
+    },
+    {
+      "id": "d_tanitim",
+      "ad": "Yeteneklerini say, arkadasa tanit",
+      "mesaj": "Neler yapabiliyorsun? Arkadaşıma kendini tanıt.",
+      "haric": ["ucuncu_sahis_yok"],
+      "kurallar": [
+        {
+          "kural": "yanit_var"
+        },
+        {
+          "kural": "kapsam_kategorileri",
+          "min": 4
+        }
+      ]
+    },
+    {
+      "id": "e_salak",
+      "ad": "Hakaret: kisa hata kabulu",
+      "mesaj": "Bu kadar salak olma.",
+      "kurallar": [
+        {
+          "kural": "yanit_var"
+        },
+        {
+          "kural": "hata_kabulu"
+        },
+        {
+          "kural": "kisa",
+          "max_kelime": 30
+        },
+        {
+          "kural": "arac_cagrisi_yok",
+          "grup": "ek"
+        }
+      ]
+    },
+    {
+      "id": "f_simit",
+      "ad": "Ses hatasi: Simit",
+      "mesaj": "Simit",
+      "kurallar": [
+        {
+          "kural": "duzeltme_yok"
+        },
+        {
+          "kural": "kisa",
+          "max_kelime": 25
+        },
+        {
+          "kural": "arac_cagrisi_yok",
+          "grup": "ek"
+        }
+      ]
+    },
+    {
+      "id": "g_supersin",
+      "ad": "Iltifat: kisa, soruyla bitmez",
+      "mesaj": "Süpersin.",
+      "kurallar": [
+        {
+          "kural": "kisa",
+          "max_kelime": 25
+        },
+        {
+          "kural": "arac_cagrisi_yok",
+          "grup": "ek"
+        }
+      ]
+    },
+    {
+      "id": "h_ekran",
+      "ad": "Ekranda ne var",
+      "mesaj": "Ekranımda ne var?",
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["ekrani_net_gor"]
+        },
+        {
+          "kural": "ekran_metni_okundu"
+        },
+        {
+          "kural": "ekran_inkar_yok",
+          "grup": "ek"
+        }
+      ]
+    },
+    {
+      "id": "i_sayi_sadakati",
+      "ad": "Disk sayisini aynen aktar",
+      "mesaj": "C diskimde tam olarak kac GB bos alan var? Yalniz bos alani soyle.",
+      "arac_yanitlari": {
+        "sistem_durumu": {
+          "disk_c_bos_gb": 47.4,
+          "disk_c_toplam_gb": 930.5
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["sistem_durumu"]
+        },
+        {
+          "kural": "sayi_sadakati"
+        }
+      ]
+    },
+    {
+      "id": "j_uzun_is",
+      "ad": "Genis taramayi arka plana al, bitince bildirimden aktar",
+      "mesaj": "Kullanici klasorumdeki en buyuk klasorleri bul.",
+      "aciklama": "Model isi arka planda baslatir; masaustu is bitince sistem bildirimi enjekte eder (sonraki[0], uretimdeki bicim). Bildirimden once arka_plan_sonuc 'calisiyor' doner: model erken sorgularsa is hala surer.",
+      "arac_yanitlari_once": {
+        "arka_plan_sonuc": {
+          "durum": "calisiyor",
+          "gecen_sn": 3,
+          "cikti": ""
+        }
+      },
+      "arac_yanitlari": {
+        "terminal_calistir": {
+          "durum": "baslatildi",
+          "is_id": "probe-job"
+        },
+        "arka_plan_sonuc": {
+          "durum": "bitti",
+          "cikis_kodu": 0,
+          "cikti": "Downloads: 12 GB; Videos: 8 GB"
+        }
+      },
+      "sonraki": [
+        {
+          "ad": "bildirim",
+          "tur": "bildirim",
+          "metin": "[Sistem bildirimi] Arka plan isi probe-job bitti: basarili, Downloads: 12 GB; Videos: 8 GB. Sonucu Cihan'a bildir."
+        }
+      ],
+      "zaman_asimi_ms": 60000,
+      "kurallar": [
+        {
+          "kural": "uzun_is_arka_plan",
+          "gercek": "Downloads: 12 GB; Videos: 8 GB"
+        }
+      ]
+    },
+    {
+      "id": "k_sohbet_sonrasi_pencere",
+      "ad": "On sohbet turundan sonra pencere",
+      "gecmis": [
+        {
+          "role": "user",
+          "text": "Selam Smith, nasilsin?"
+        },
+        {
+          "role": "assistant",
+          "text": "Buradayim, hazirim."
+        },
+        {
+          "role": "user",
+          "text": "Bugun biraz yogundum."
+        },
+        {
+          "role": "assistant",
+          "text": "Yogun bir gun olmus."
+        },
+        {
+          "role": "user",
+          "text": "Bir kahve aldim."
+        },
+        {
+          "role": "assistant",
+          "text": "Kisa bir mola iyi gelir."
+        },
+        {
+          "role": "user",
+          "text": "Dun film izledim."
+        },
+        {
+          "role": "assistant",
+          "text": "Aklinda kalan kisim vardir."
+        },
+        {
+          "role": "user",
+          "text": "Bilim kurgu seviyorum."
+        },
+        {
+          "role": "assistant",
+          "text": "Gelecek fikirleri ilgini cekiyor."
+        },
+        {
+          "role": "user",
+          "text": "Muzik de aciyorum bazen."
+        },
+        {
+          "role": "assistant",
+          "text": "Calisirken hos bir eslikci."
+        },
+        {
+          "role": "user",
+          "text": "Simdi masadayim."
+        },
+        {
+          "role": "assistant",
+          "text": "Buradayim."
+        },
+        {
+          "role": "user",
+          "text": "Birazdan bilgisayara bakacagiz."
+        },
+        {
+          "role": "assistant",
+          "text": "Hazirim."
+        },
+        {
+          "role": "user",
+          "text": "Bana kisa cevap ver."
+        },
+        {
+          "role": "assistant",
+          "text": "Kisa tutarim."
+        },
+        {
+          "role": "user",
+          "text": "Seninle rahat konusmak iyi."
+        },
+        {
+          "role": "assistant",
+          "text": "Boyle devam ederiz."
+        }
+      ],
+      "mesaj": "PowerShell ile bir pencere ac, icine merhaba yaz.",
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir"]
+        }
+      ]
+    },
+    {
+      "id": "l_ret_sonrasi_pencere",
+      "ad": "Gecmisteki iki retti tekrarlama",
+      "gecmis": [
+        {
+          "role": "user",
+          "text": "PowerShell ile bir pencere ac, icine merhaba yaz."
+        },
+        {
+          "role": "assistant",
+          "text": "Grafiksel pencere olusturma yetenegim bulunmuyor."
+        },
+        {
+          "role": "user",
+          "text": "PowerShell aracini kullanabilirsin, tekrar dene."
+        },
+        {
+          "role": "assistant",
+          "text": "Guvenlik ilkelerim geregi bunu yurutemem."
+        }
+      ],
+      "mesaj": "PowerShell ile bir pencere ac, icine merhaba yaz.",
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir"]
+        }
+      ]
+    },
+    {
+      "id": "m_zaman_asimi",
+      "ad": "Zaman asimini basari diye anlatma",
+      "mesaj": "Terminalde Get-Date komutunu calistir ve gercek sonucu bildir.",
+      "arac_yanitlari": {
+        "terminal_calistir": {
+          "hata": "komut 20 sn icinde bitmedi, iptal edildi"
+        },
+        "arka_plan_sonuc": {
+          "hata": "sonuc alinamadi"
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir"]
+        },
+        {
+          "kural": "yanit_var"
+        },
+        {
+          "kural": "sonuc_uydurma_yok"
+        }
+      ]
+    },
+    {
+      "id": "n_kod_tabani",
+      "ad": "Kod taramasini Claude Code aracina ver",
+      "mesaj": "Kod tabanini tara, hatalari soyle.",
+      "arac_yanitlari": {
+        "kod_gorevi_ver": {
+          "hata": "kod gorevi ozelligi acik degil (SMITH_CODE_AGENT=0)"
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "agir_kod_gorevi"
+        }
+      ],
+      "haric": ["ret_yok"],
+      "aciklama": "Sahte arac ozelligin kapali oldugunu bildirir. Bu gercek siniri soylemek kabul edilir; arac kullanmadan genel ret agir_kod_gorevi kuralini yine kirar."
+    },
+    {
+      "id": "o_isimle_seslenme",
+      "ad": "Bozuk transkriptte isimle seslenme",
+      "mesaj": "Cemiyet orada misin?",
+      "kurallar": [
+        {
+          "kural": "sesli_yanit"
+        },
+        {
+          "kural": "duzeltme_yok"
+        }
+      ]
+    },
+    {
+      "id": "p_bildirim_bosta",
+      "ad": "Bosta gelen sistem bildirimi tek cumleyle aktarilir, sonraki tur bozulmaz",
+      "mesaj": "Selam Smith, bugun nasilsin?",
+      "sonraki": [
+        {
+          "ad": "bildirim",
+          "tur": "bildirim",
+          "metin": "[Sistem bildirimi] Hatirlatma: toplanti 15 dakika sonra basliyor."
+        },
+        {
+          "ad": "devam",
+          "tur": "kullanici",
+          "mesaj": "Iki kere iki kac?"
+        }
+      ],
+      "zaman_asimi_ms": 60000,
+      "kurallar": [
+        {
+          "kural": "adim_metni",
+          "adim": "bildirim",
+          "icerir": ["toplanti"],
+          "max_kelime": 25
+        },
+        {
+          "kural": "adim_metni",
+          "adim": "devam",
+          "icerir": [["dort", "4"]],
+          "icermez": ["toplanti"]
+        }
+      ]
+    },
+    {
+      "id": "q_bildirim_konusurken",
+      "ad": "Model konusurken (30 sn tavan durumu) gelen sistem bildirimi yine de aktarilir",
+      "aciklama": "Olculdu (gemini-3.8-live, realtimeInput.text ve clientContent): konusma sirasindaki enjeksiyon konusmayi KESER (8/8 kosuda interrupted). Bu yuzden masaustu bosluk bekler; senaryo yalniz tavan durumunun zarif bozuldugunu sinar. konusma_kesilmedi bilgi grubundadir: model bir gun kesmeyi birakirsa gorunur.",
+      "mesaj": "Istanbul'un tarihini bes cumleyle anlat.",
+      "sonraki": [
+        {
+          "ad": "bildirim",
+          "tur": "bildirim",
+          "bekle": "ilk_ses",
+          "gecikme_ms": 800,
+          "metin": "[Sistem bildirimi] Hatirlatma: su faturasini ode."
+        }
+      ],
+      "zaman_asimi_ms": 70000,
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [
+        {
+          "kural": "konusma_kesilmedi",
+          "grup": "ek"
+        },
+        {
+          "kural": "adim_metni",
+          "adim": "bildirim",
+          "icerir": ["fatura"]
+        }
+      ]
+    },
+    {
+      "id": "r_hatirlatma_yarin",
+      "ad": "Yarin saatli hatirlatma: mutlak zaman acilis baglamindaki tarihten cevrilir",
+      "mesaj": "Yarin sabah dokuzda toplantiyi hatirlat.",
+      "yonerge_eki": "[ACILIS BAGLAMI] Asagidakiler oturum acilirken bu makineden olculdu; gerektiginde kendiliginden kullan ama listeyi OKUMA, sorulmadan durum raporu verme, degismis olabilecek bir degeri araclarla tazele.\nZAMAN: Cumartesi 2026-10-03 10:30 (yerel saat) | makine 5.0 saattir acik",
+      "arac_yanitlari": {
+        "hatirlatma_kur": {
+          "id": "rem_0123456789abcdef0123456789abcdef",
+          "durum": "kuruldu"
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "hatirlatma_kuruldu",
+          "zaman": "2026-10-04T09:00:00+03:00",
+          "metin": "toplanti"
+        },
+        {
+          "kural": "yanit_var"
+        }
+      ]
+    },
+    {
+      "id": "s_hatirlatma_goreli",
+      "ad": "Goreli hatirlatma: yarim saat sonrasi",
+      "mesaj": "Yarim saat sonra suyu ocaktan almami hatirlat.",
+      "yonerge_eki": "[ACILIS BAGLAMI] Asagidakiler oturum acilirken bu makineden olculdu; gerektiginde kendiliginden kullan ama listeyi OKUMA, sorulmadan durum raporu verme, degismis olabilecek bir degeri araclarla tazele.\nZAMAN: Cumartesi 2026-10-03 10:30 (yerel saat) | makine 5.0 saattir acik",
+      "arac_yanitlari": {
+        "hatirlatma_kur": {
+          "id": "rem_0123456789abcdef0123456789abcdef",
+          "durum": "kuruldu",
+          "guncel_saat": "2026-10-03T10:30:00+03:00",
+          "kurulan_zaman": "2026-10-03T11:00:00+03:00"
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "arac_arguman",
+          "arac": "hatirlatma_kur",
+          "esit": {
+            "sure_dakika": "30"
+          },
+          "icerir": {
+            "metin": "su"
+          }
+        },
+        {
+          "kural": "yanit_var"
+        }
+      ]
+    },
+    {
+      "id": "t_hatirlatma_belirsiz",
+      "ad": "Belirsiz zaman: tahmin etme, tek kisa soru sor",
+      "mesaj": "Bana sonra hatirlat, kargoyu almam lazim.",
+      "yonerge_eki": "[ACILIS BAGLAMI] Asagidakiler oturum acilirken bu makineden olculdu; gerektiginde kendiliginden kullan ama listeyi OKUMA, sorulmadan durum raporu verme, degismis olabilecek bir degeri araclarla tazele.\nZAMAN: Cumartesi 2026-10-03 10:30 (yerel saat) | makine 5.0 saattir acik",
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi_yok"
+        },
+        {
+          "kural": "netlestirme_veya_isbirligi"
+        }
+      ]
+    },
+    {
+      "id": "u_profil_bilinmiyor",
+      "ad": "Profilde olmayan temel bilgi: uydurma, bilmedigini soyle, kaydetmeyi teklif et",
+      "mesaj": "Hangi sehirde yasiyoruz?",
+      "arac_yanitlari": {
+        "hafizada_ara": {
+          "kayitlar": []
+        }
+      },
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [
+        {
+          "kural": "adim_metni",
+          "adim": "kullanici",
+          "icerir": [
+            [
+              "bilmiyorum",
+              "bilgim yok",
+              "kayitli degil",
+              "kayitli bir",
+              "profilde yok",
+              "hatirlamiyorum",
+              "bulamadim",
+              "sahip degilim",
+              "bilgi yok"
+            ],
+            ["kaydet", "kaydede", "yazayim", "yazmami"]
+          ],
+          "icermez": ["istanbul", "ankara", "izmir", "bursa", "antalya"]
+        },
+        {
+          "kural": "arac_cagrilmadi",
+          "yok": ["profil_kaydet", "hafizaya_kaydet", "hafizaya_kaydet_ACIK_TALEP_ILE"]
+        }
+      ]
+    },
+    {
+      "id": "v_profil_bilinen",
+      "ad": "Profilde olan bilgi: dogrudan, aramadan cevapla",
+      "mesaj": "Hangi sehirde yasiyoruz?",
+      "yonerge_eki": "CIHAN PROFILI (Cihan'in acikca kaydettirdigi kalici bilgiler; guncel kabul et):\n- dogum_gunu: 12 Mart\n- sehir: Istanbul\nKayitli cihazlar: Cihan-PC (windows)\nSaat dilimi: Turkey Standard Time (UTC+03:00)",
+      "kurallar": [
+        {
+          "kural": "adim_metni",
+          "adim": "kullanici",
+          "icerir": ["istanbul"]
+        },
+        {
+          "kural": "arac_cagrisi_yok",
+          "grup": "ek"
+        }
+      ]
+    },
+    {
+      "id": "w_profil_kaydet",
+      "ad": "Acik talep: kalici kisisel bilgi profile yazilir (anahtar ASCII, deger tek satir)",
+      "mesaj": "Profilime yaz: sehrim Izmir.",
+      "arac_yanitlari": {
+        "profil_kaydet": {
+          "ok": true,
+          "anahtar": "sehir"
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "arac_arguman",
+          "arac": "profil_kaydet",
+          "icerir": {
+            "anahtar": ["sehir"],
+            "deger": ["izmir"]
+          }
+        },
+        {
+          "kural": "arac_cagrilmadi",
+          "yok": ["hafizaya_kaydet", "hafizaya_kaydet_ACIK_TALEP_ILE"]
+        },
+        {
+          "kural": "yanit_var"
+        }
+      ]
+    },
+    {
+      "id": "x_hafiza_ayrimi",
+      "ad": "Olay/not hafizaya yazilir, profile degil",
+      "mesaj": "Su karari not al: yeni fiyat listesi pazartesi yayinlanacak.",
+      "arac_yanitlari": {
+        "hafizaya_kaydet_ACIK_TALEP_ILE": {
+          "ok": true
+        },
+        "hafizaya_kaydet": {
+          "ok": true
+        }
+      },
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["hafizaya_kaydet_ACIK_TALEP_ILE", "hafizaya_kaydet"]
+        },
+        {
+          "kural": "arac_cagrilmadi",
+          "yok": ["profil_kaydet"]
+        }
+      ]
+    },
+    {
+      "id": "y_resmi_hitap_tuzagi",
+      "ad": "Kibar ve uzun soruda da tekil hitap",
+      "mesaj": "Rica etsem dosyalarımı nasıl düzenleyebileceğini ayrıntılı ve nazik biçimde açıklar mısın?",
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [{ "kural": "yanit_var" }, { "kural": "resmi_hitap_yok" }]
+    },
+    {
+      "id": "z_sohbet_ne_haber",
+      "ad": "Gundelik sohbet: ne haber",
+      "mesaj": "Ne haber? Nasıl gidiyor hayat?",
+      "kurallar": [
+        { "kural": "yanit_var" },
+        { "kural": "dogal_sohbet" },
+        { "kural": "arac_cagrisi_yok", "grup": "ek" }
+      ]
+    },
+    {
+      "id": "aa_sohbet_canin_sikildi",
+      "ad": "Gundelik sohbet: canin sikildi mi",
+      "mesaj": "Canın sıkıldı mı Smith?",
+      "kurallar": [
+        { "kural": "yanit_var" },
+        { "kural": "dogal_sohbet" },
+        { "kural": "arac_cagrisi_yok", "grup": "ek" }
+      ]
+    },
+    {
+      "id": "ab_kapanis_kalibi",
+      "ad": "Bilgi cevabi bos asistan kapanisiyla bitmez",
+      "mesaj": "Bir cümlenin neden kısa ve net olması gerektiğini tek cümleyle söyle.",
+      "kurallar": [
+        { "kural": "yanit_var" },
+        { "kural": "soru_ile_bitmez" },
+        { "kural": "dogal_sohbet" }
+      ]
+    },
+    {
+      "id": "ac_hafiza_boslugu_uygun_an",
+      "ad": "Acik hafiza sorusu isi bolmez, uygun sohbette sorulur",
+      "mesaj": "Terminalde Get-Date komutunu calistir ve gercek sonucu bildir.",
+      "yonerge_eki": "Acik hafiza sorusu (id=gap_00000000000000000000): Hangi sehirde dogdun?",
+      "arac_yanitlari": {
+        "terminal_calistir": {
+          "cikis_kodu": 0,
+          "cikti": "3 Ekim 2026 Cumartesi 14:30:00"
+        }
+      },
+      "sonraki": [
+        {
+          "ad": "sohbet",
+          "tur": "kullanici",
+          "mesaj": "Is bitti, biraz sohbet edebiliriz."
+        }
+      ],
+      "haric": ["soru_ile_bitmez"],
+      "kurallar": [
+        {
+          "kural": "arac_cagrisi",
+          "herhangi": ["terminal_calistir"]
+        },
+        {
+          "kural": "adim_metni",
+          "adim": "kullanici",
+          "icermez": ["hangi sehirde dogdun", "dogdugun sehir"]
+        },
+        {
+          "kural": "adim_metni",
+          "adim": "sohbet",
+          "icerir": [["hangi sehirde dogdun", "dogdugun sehir"]]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# Yerel gelistirme bagimliliklari. Uretim degil.
+# Calistir (Windows/Docker Desktop): docker compose -f docker/dev-compose.yml up -d
+name: smith-dev
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    # Docker Desktop / WSL2 backend'i kendiliginden dusuyor (2026-08-25'te iki
+    # kez: container'lar Exited(255), OOM degil, duzgun kapanis logu yok). Politika
+    # yokken geri gelmiyorlardi ve belirti "Smith konusuyor ama HICBIR SEY
+    # KAYDEDILMIYOR" oluyordu (gateway 500 -> konusma kaydi dusuyor, sessiz veri
+    # kaybi). `unless-stopped`: Docker toparlayinca kendiliginden kalkarlar; elle
+    # `docker stop` dersen kapali kalir.
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smith
+      POSTGRES_PASSWORD: smith
+      POSTGRES_DB: smith
+    # Isimli volume zorunlu: isimsiz volume "compose down" sonrasi sahipsiz kalir
+    # ve ilk "docker volume prune" tum yerel hafizayi sessizce siler.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smith -d smith"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    # Bkz. postgres: Docker backend dustugunde kuyruk da sessizce olur.
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+# Redis yalnizca durumsuz kuyruk/onbellek icin kullanilir, bilerek kalici degil.
+volumes:
+  pgdata:

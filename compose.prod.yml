@@ -1,0 +1,137 @@
+# Smith production compose (Dokploy "Compose" servisi + yerel dogrulama).
+#
+# Kullanim (yerel): docker compose -f compose.prod.yml config
+# Dokploy: Compose -> Git (bu repo, main) -> compose yolu: compose.prod.yml
+#
+# Ag ici host adlari: postgres:5432, redis:6379, gateway:4100.
+# Secret'lar dosyaya YAZILMAZ; Dokploy environment degiskenlerinden gelir.
+# NOT: interpolation BILEREK toleransli (`:-` / bos varsayilan). Kati `:?`
+# kullanilmiyor cunku Dokploy config asamasinda env dosyasini henuz yazmamis
+# olabiliyor ve `:?` deploy'u saniyeler icinde dusuruyordu. Gercek fail-fast
+# uygulama katmaninda: gateway env semasi + provision.mjs eksik degiskenle
+# acilista patlar (sebep logda yazar).
+# Zorunlu: POSTGRES_PASSWORD, SMITH_APP_PASSWORD, SESSION_SECRET (en az 32),
+#   SMITH_LLM_BASE_URL + SMITH_LLM_API_KEY + SMITH_LLM_MODEL
+#   (sunucuda Ollama yok; bos birakilirsa gateway ayakta ama sohbet cagrilari duser),
+#   SMITH_EMBED_BASE_URL + SMITH_EMBED_API_KEY (SMITH_EMBED_MODEL varsayilani uzak ucun
+#   modeli gemini-embedding-001'dir). Gomme ucu bos birakilirsa packages/env acilis
+#   dogrulamasi gateway ve worker'i DURDURUR: uc yokken model yerel Ollama varsayilani
+#   (nomic-embed-text) olmak zorunda, sunucuda Ollama yok.
+name: smith-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smith
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: smith
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smith -d smith"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  gateway:
+    # IMAJ SUNUCUDA YERELDIR; build CI/yerelde olur, aktarim scripts/deploy-prod.ps1
+    # ile yapilir. Iki gerekce:
+    #   1) GHCR'da imaj yok; uzak registry'ye itmek icin PAT gerekiyor.
+    #   2) Host Dokploy'un kendisi: 12 CPU, load ~9. Monorepo build'i (pnpm +
+    #      turbo) burada calistirinca API 502 verip job'i iptal ediyordu.
+    # `pull_policy: never` sart: compose varsayilani once registry'ye soruyor ve
+    # imaj yerelde olsa bile "manifest unknown" ile duser.
+    image: smith-gateway:prod
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "4100"
+    environment:
+      NODE_ENV: production
+      PORT: "4100"
+      # Gateway varsayilan olarak loopback'te dinler; konteyner icinde web (nginx)
+      # servisinin gateway:4100'e baglanabilmesi icin tum arayuzler ACIKCA verilir.
+      # Disariya acilma `expose` + ic ag ile sinirli (ports yok).
+      SMITH_GATEWAY_HOST: "0.0.0.0"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Opsiyonel guvenlik bayraklari (bos = varsayilan davranis):
+      #   SMITH_ALLOW_REGISTRATION=1 kimliksiz /v1/auth/register ucunu acar (varsayilan
+      #   KAPALI; hesaplar seed betigiyle acilir).
+      #   SMITH_WS_DISABLE_LEGACY_TOKEN=1 WebSocket ?token= kimlik yolunu kapatir (varsayilan
+      #   ACIK; JWT nginx erisim gunlugune duser, istemciler /v1/ws/ticket kullanmali).
+      SMITH_ALLOW_REGISTRATION: ${SMITH_ALLOW_REGISTRATION:-}
+      SMITH_WS_DISABLE_LEGACY_TOKEN: ${SMITH_WS_DISABLE_LEGACY_TOKEN:-}
+      DATABASE_URL: postgresql://smith_app:${SMITH_APP_PASSWORD:-}@postgres:5432/smith
+      MIGRATE_DATABASE_URL: postgresql://smith:${POSTGRES_PASSWORD:-}@postgres:5432/smith
+      SMITH_APP_PASSWORD: ${SMITH_APP_PASSWORD:-}
+      REDIS_URL: redis://redis:6379
+      SMITH_LLM_BASE_URL: ${SMITH_LLM_BASE_URL:-}
+      SMITH_LLM_API_KEY: ${SMITH_LLM_API_KEY:-}
+      SMITH_LLM_MODEL: ${SMITH_LLM_MODEL:-gemini-flash-latest}
+      SMITH_LLM_FALLBACK_BASE_URL: ${SMITH_LLM_FALLBACK_BASE_URL:-}
+      SMITH_LLM_FALLBACK_API_KEY: ${SMITH_LLM_FALLBACK_API_KEY:-}
+      SMITH_LLM_FALLBACK_MODEL: ${SMITH_LLM_FALLBACK_MODEL:-}
+      SMITH_LLM_TIMEOUT_MS: ${SMITH_LLM_TIMEOUT_MS:-45000}
+      SMITH_EMBED_BASE_URL: ${SMITH_EMBED_BASE_URL:-}
+      SMITH_EMBED_API_KEY: ${SMITH_EMBED_API_KEY:-}
+      SMITH_EMBED_MODEL: ${SMITH_EMBED_MODEL:-gemini-embedding-001}
+      SMITH_EMBED_DIMENSIONS: ${SMITH_EMBED_DIMENSIONS:-768}
+
+  worker:
+    image: smith-worker:prod
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://smith_app:${SMITH_APP_PASSWORD:-}@postgres:5432/smith
+      REDIS_URL: redis://redis:6379
+      SMITH_LLM_BASE_URL: ${SMITH_LLM_BASE_URL:-}
+      SMITH_LLM_API_KEY: ${SMITH_LLM_API_KEY:-}
+      SMITH_LLM_MODEL: ${SMITH_LLM_MODEL:-gemini-flash-latest}
+      SMITH_LLM_FALLBACK_BASE_URL: ${SMITH_LLM_FALLBACK_BASE_URL:-}
+      SMITH_LLM_FALLBACK_API_KEY: ${SMITH_LLM_FALLBACK_API_KEY:-}
+      SMITH_LLM_FALLBACK_MODEL: ${SMITH_LLM_FALLBACK_MODEL:-}
+      SMITH_LLM_TIMEOUT_MS: ${SMITH_LLM_TIMEOUT_MS:-45000}
+      SMITH_EMBED_BASE_URL: ${SMITH_EMBED_BASE_URL:-}
+      SMITH_EMBED_API_KEY: ${SMITH_EMBED_API_KEY:-}
+      SMITH_EMBED_MODEL: ${SMITH_EMBED_MODEL:-gemini-embedding-001}
+      SMITH_EMBED_DIMENSIONS: ${SMITH_EMBED_DIMENSIONS:-768}
+
+  web:
+    image: smith-web:prod
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    # Nginx hem statik durum sayfasini sunar hem /v1/*'i gateway'e proxy'ler
+    # (WebSocket dahil). Domain henuz yok; bu port gecici giris noktasi.
+    # 80/443 traefik kullaniyor, 8088/8089/8644/9002/9003/9119 dolu.
+    ports:
+      - "8090:80"
+
+volumes:
+  pgdata:

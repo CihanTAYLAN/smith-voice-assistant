@@ -1,0 +1,82 @@
+# Yerel deterministik kapi. CI'in kopyasi degil, CI'e gitmeden once ucuz olani yakalar.
+# Talimat tavsiyedir, mekanizma garantidir.
+
+pre-commit:
+  parallel: true
+  jobs:
+    # PowerShell davranis testleri ag/docker cagirmadan iki betik katmanini korur.
+    # pwsh olmayan ortamda kapi acik bir mesajla atlanir; sessiz yesil yoktur.
+    - name: powershell-tests
+      glob: "scripts/*.ps1"
+      runner: bash -lc "{cmd}"
+      run: >-
+        if command -v pwsh >/dev/null 2>&1; then
+        pwsh -NoProfile -File scripts/smith-common-test.ps1 -SkipE2E &&
+        pwsh -NoProfile -File scripts/pg-backup-test.ps1 &&
+        pwsh -NoProfile -File scripts/sidecar-scripts-test.ps1 &&
+        pwsh -NoProfile -File scripts/smith-env-export-test.ps1 &&
+        pwsh -NoProfile -File scripts/smith-migrate-data-test.ps1;
+        else echo [powershell-tests] ATLANDI: pwsh bulunamadi. >&2; fi
+  commands:
+    format:
+      glob: "*.{ts,tsx,js,json,md,yaml,yml}"
+      run: pnpm exec prettier --check {staged_files}
+    lint:
+      glob: "*.{ts,tsx}"
+      run: pnpm exec eslint --max-warnings=0 {staged_files}
+    # Rust tarafi bu kapiya 2026-08-14'e kadar HIC girmedi: crate bir kez bile
+    # formatlanmamisti (88 fark) ve CI'de tek bir cargo adimi yoktu. `rustfmt`
+    # DERLEME YAPMAZ, yalnizca ayristirir -> milisaniyeler surer, pre-commit'e
+    # sigar. Derleme gerektiren `cargo test`/`clippy` CI'in Windows isinde.
+    # `cargo fmt` degil CIPLAK `rustfmt`: cargo fmt tum crate'i formatlar,
+    # {staged_files} ile calismaz. Edition'i apps/desktop/src-tauri/rustfmt.toml
+    # veriyor (rustfmt yapilandirmayi dosyanin dizininden yukari dogru arar).
+    rust-format:
+      glob: "*.rs"
+      run: rustfmt --check {staged_files}
+    # 2026-08-14'te ayni gun IKI ADR numara cakismasi olustu (0004 ve 0007);
+    # ikincisinin sebebi paralel iki oturumun birbirinin commit'ini gormemesi.
+    # {staged_files} VERILMEZ: yinelenme tek dosyanin degil KUMENIN ozelligi,
+    # script dizinin tamamina bakmali. Glob yalnizca kapinin ne zaman
+    # kosacagini belirler.
+    adr-numbers:
+      glob: "docs/decisions/*.md"
+      run: bash scripts/check-adr-numbers.sh
+    # Smith durum dosyalari TEK veri kokunde durur (SMITH_DATA_DIR ya da %USERPROFILE%\.smith).
+    # AppData tabanli yol MSIX yonlendirmesi yuzunden iki ayri "gercek" uretti (2026-10-03:
+    # ses izi, yedek ayari, gunlukler, kilitler ikiye bolundu). {staged_files}
+    # VERILMEZ: izin listesinin bayatligi KUMENIN ozelligi (adr-numbers ile ayni desen). Ayni kapi
+    # `pnpm test` icinde de kosar (scripts/check-data-root.test.mjs), yani CI'da atlanamaz.
+    data-root:
+      glob: "*.{rs,ps1,py,ts,tsx,js,mjs,cjs,sh,yml,yaml}"
+      run: node scripts/check-data-root.mjs
+    # Ses izi KARAR mantigi. Bu kapinin ozel bir gerekcesi var: 2026-08-15'te
+    # iki sabit deger (uyarlama marji ve sure tabani) sessizce fazla kati
+    # secildi ve ozelligi OLU biraktu — hata mesaji yok, log yok, test kirmizi
+    # degil, yalnizca hicbir sey olmuyor. Bu sinif kusuru ancak kod yakalar.
+    # Model/ses/ag gerekmez (sahte gomucu), olculen sure 0.54 sn.
+    # `bash …` SART: lefthook bu makinede komutu bash ile calistirmiyor, POSIX
+    # sozdizimi dogrudan `run:` icinde sessizce dusuyor (olculdu) — kapi teste
+    # hic ulasmadan 0.05 sn'de "basarisiz" oluyordu.
+    speaker-karar:
+      glob: "apps/desktop/sidecar/*speaker*.py"
+      run: bash scripts/test-speaker-karar.sh
+    # Windows PowerShell 5.1 BOM'suz .ps1 dosyalarini ANSI okur; ASCII disi bir
+    # karakter DIZE icindeyse script parse hatasiyla HIC calismaz. Gerekce ve
+    # yasanan ariza: scripts/check-ps1-ascii.sh basinda.
+    ps1-ascii:
+      glob: "*.ps1"
+      run: bash scripts/check-ps1-ascii.sh {staged_files}
+    secret-scan:
+      run: bash scripts/scan-secrets.sh {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    typecheck:
+      run: pnpm typecheck
+
+commit-msg:
+  commands:
+    conventional:
+      run: bash scripts/check-commit-msg.sh {1}

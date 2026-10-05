@@ -1,0 +1,54 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="120" x2="880" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c2233"/>
+      <stop offset="1" stop-color="#0c0e15"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="512" cy="470" r="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b8cff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#5b8cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="head" x1="300" y1="250" x2="724" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2a3346"/>
+      <stop offset="1" stop-color="#161c29"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="380" y1="430" x2="644" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8fb0ff"/>
+      <stop offset="1" stop-color="#5b8cff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- squircle arka plan (kose disi seffaf → macOS squircle) -->
+  <rect x="64" y="64" width="896" height="896" rx="232" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="232" fill="url(#halo)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="230.5" stroke="#5b8cff" stroke-opacity="0.18" stroke-width="3"/>
+
+  <!-- anten (karakter dokunusu) -->
+  <line x1="512" y1="232" x2="512" y2="292" stroke="#5b8cff" stroke-width="14" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="512" cy="212" r="26" fill="url(#accent)" filter="url(#glow)"/>
+
+  <!-- kafa / visor -->
+  <rect x="286" y="300" width="452" height="410" rx="120" fill="url(#head)" stroke="#5b8cff" stroke-opacity="0.28" stroke-width="4"/>
+
+  <!-- gozler -->
+  <g filter="url(#glow)" fill="url(#accent)">
+    <rect x="384" y="420" width="54" height="120" rx="27"/>
+    <rect x="586" y="420" width="54" height="120" rx="27"/>
+  </g>
+
+  <!-- agiz = ses dalgasi (Smith duyar/konusur) -->
+  <g filter="url(#glow)" fill="url(#accent)">
+    <rect x="396" y="612" width="26" height="40" rx="13"/>
+    <rect x="446" y="590" width="26" height="84" rx="13"/>
+    <rect x="499" y="572" width="26" height="120" rx="13"/>
+    <rect x="552" y="590" width="26" height="84" rx="13"/>
+    <rect x="602" y="612" width="26" height="40" rx="13"/>
+  </g>
+</svg>

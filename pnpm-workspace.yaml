@@ -1,0 +1,107 @@
+packages:
+  - apps/*
+  - apps/clients/*
+  - packages/*
+  - tooling/*
+
+# Supply-chain savunmasi: 48 saatten yeni yayinlanmis surumler kurulmaz.
+# Acil bir surume ihtiyac olursa minimumReleaseAgeExclude'a ekle, gerekcesini yaz.
+minimumReleaseAge: 2880
+minimumReleaseAgeExclude: []
+
+# Kusur #2 duzeltmesi: tum surumler tek noktadan yonetilir.
+# Paketler "catalog:" yazar, cakisma imkansiz hale gelir.
+catalog:
+  # --- toolchain ---
+  typescript: ^5.8.3
+  turbo: ^2.5.3
+  prettier: ^3.5.3
+  eslint: ^9.24.0
+  "@eslint/js": ^9.24.0
+  typescript-eslint: ^8.63.0
+  eslint-config-prettier: ^10.1.1
+  eslint-plugin-react: ^7.37.5
+  eslint-plugin-react-hooks: ^5.2.0
+  lefthook: ^1.10.10
+  "@changesets/cli": ^2.27.13
+  "@types/node": ^22.14.0
+  tsx: ^4.21.0
+  vitest: ^4.1.10
+
+  # --- runtime cekirdek ---
+  zod: ^3.24.3
+  hono: 4.12.12
+  ioredis: ^5.8.2
+  bullmq: ^5.63.1
+  date-fns: ^4.1.0
+
+  # --- veri ---
+  prisma: 7.2.0
+  "@prisma/client": 7.2.0
+
+  # --- model saglayicilari ---
+  "@anthropic-ai/sdk": 0.81.0
+  openai: ^6.34.0
+
+  # --- veri katmani ---
+  "@prisma/adapter-pg": 7.2.0
+  pg: ^8.16.3
+  "@types/pg": ^8.15.4
+
+  # --- gateway/istemci tasima ---
+  "@hono/node-server": ^1.19.0
+  "@hono/node-ws": ^1.2.0
+  ws: ^8.18.3
+  "@types/ws": ^8.18.1
+
+  # --- gozlemlenebilirlik (earlier-project'da kanitli surumler) ---
+  "@langfuse/otel": ^5.2.0
+  "@langfuse/tracing": ^5.2.0
+  "@opentelemetry/api": ^1.9.0
+  "@opentelemetry/sdk-node": ^0.216.0
+
+  # --- auth (earlier-project'da kanitli algoritma secimleri) ---
+  bcryptjs: ^3.0.2
+  jsonwebtoken: ^9.0.2
+  "@types/jsonwebtoken": ^9.0.7
+
+  # --- istemci ---
+  react: ^19.2.7
+  react-dom: ^19.2.7
+  next: ^16.2.10
+  clsx: ^2.1.1
+  tailwind-merge: ^3.6.0
+  "@tauri-apps/api": ^2.7.0
+  "@tauri-apps/cli": ^2.7.0
+  "@types/react": ^19.1.2
+  "@types/react-dom": ^19.1.2
+  "@vitejs/plugin-react": ^5.0.0
+  vite: ^6.2.6
+
+  # --- dashboard UI (masaustu panosu: Smith Dashboard) ---
+  # Mantine: 120+ bilesen + 70+ hook, CSS Modules (CSS-in-JS runtime YOK) —
+  # "zengin + hafif" secimi; gerekce gun notu smith-dashboard.md.
+  "@mantine/core": ^9.6.1
+  "@mantine/hooks": ^9.6.1
+  # Dosya duzenleyici: CodeMirror 6 (moduler; Monaco'nun aksine hafif).
+  codemirror: ^6.0.2
+  # Plasma UI: WebGL'de cizilen sivi panel katmani (dashboard yuzeyi).
+  # minimumReleaseAge: 0.7.0 yayini 2026-09-22 — 48 saat kuralini geciyor.
+  "@cruxgarden/plasma-ui": ^0.7.0
+  "@codemirror/lang-markdown": ^6.5.2
+  "@codemirror/theme-one-dark": ^6.1.3
+
+# pnpm 11 mekanizmasi: her build script'i acik bir evet/hayir karari.
+# Yeni bir paket build istedigi anda pnpm buraya placeholder yazar ve
+# sen karar verene kadar install kirmizi kalir. Sessiz kod calistirma yok.
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  prisma: true
+  "@prisma/engines": true
+  "@prisma/client": true
+  sharp: true
+  # Telemetri paketleri: acikca reddedilir.
+  "@scarf/scarf": false
+  msgpackr-extract: true
+  protobufjs: false
